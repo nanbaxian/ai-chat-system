@@ -1,0 +1,3 @@
+[[analytics_engine_datasets]]
+binding = "VOICE_METRICS"
+dataset = "voice_ai_metrics"

@@ -1,0 +1,64 @@
+# ========================
+# Project-wide ignores
+# ========================
+
+## Node dependencies
+node_modules/
+**/node_modules/
+
+## Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+## Environment files
+*.env
+*.env.*
+*.dev.vars
+
+## Operating system
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+
+## Editors and IDEs
+/.vscode/
+/.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+## Backend / Cloudflare
+/backend/.env
+/backend/.dev.vars
+/backend/.wrangler/
+/backend/dist/
+/backend/build/
+
+## Flutter project artifacts
+/.dart_tool/
+/.flutter-plugins
+/.flutter-plugins-dependencies
+/.metadata
+/.packages
+/build/
+MERGED_MANIFEST.txt
+
+## Flutter frontend
+/frontend/flutter/.dart_tool/
+/frontend/flutter/.packages
+/frontend/flutter/build/
+/frontend/flutter/.flutter-plugins
+/frontend/flutter/.flutter-plugins-dependencies
+/frontend/flutter/.metadata
+/frontend/flutter/.idea/
+
+## Temporary files
+*.tmp
+*.bak
+*.cache

@@ -1,0 +1,17 @@
+name = "voice-ai-demo"
+main = "src/worker.ts"
+compatibility_date = "2025-07-18"
+
+# Durable Object binding
+[[durable_objects.bindings]]
+name = "SESSION_DO"
+class_name = "SessionDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SessionDO"]
+
+# Analytics Engine dataset for metrics (optional but recommended)
+[[analytics_engine_datasets]]
+binding = "VOICE_METRICS"
+dataset = "voice_ai_metrics"

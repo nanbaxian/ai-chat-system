@@ -1,0 +1,1 @@
+Metrics hooks placeholder – Cloudflare Analytics ready.

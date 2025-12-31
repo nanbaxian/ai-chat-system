@@ -1,0 +1,1 @@
+Unified realtime event protocol (audio_in, stt.partial, llm.delta, tts.audio, cancel).
