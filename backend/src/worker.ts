@@ -1,16 +1,22 @@
 export { SessionDO } from './session/session_do.ts';
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Expose-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Credentials': 'true',
 };
 
-function withCors(res: Response) {
+function withCors(res: Response, origin?: string) {
   const headers = new Headers(res.headers);
   for (const [key, value] of Object.entries(CORS_HEADERS)) {
     headers.set(key, value);
   }
+
+  if (origin) {
+    headers.set('Access-Control-Allow-Origin', origin);
+  }
+
   return new Response(res.body, { status: res.status, headers });
 }
 
@@ -20,15 +26,18 @@ export default {
     const method = (req.method ?? 'GET').toUpperCase();
 
     if (method === 'OPTIONS') {
-      return new Response(null, { headers: CORS_HEADERS });
+      const ori = req.headers.get('Origin') ?? '*';
+      return new Response(null, { headers: { ...CORS_HEADERS, 'Access-Control-Allow-Origin': ori } });
     }
 
+    const origin = req.headers.get('Origin') ?? '*';
+
     if (!url.pathname.startsWith('/signal')) {
-      return withCors(new Response('Not Found', { status: 404 }));
+      return withCors(new Response('Not Found', { status: 404 }), origin);
     }
 
     const auth = req.headers.get('Authorization');
-    if (!auth) return withCors(new Response('Unauthorized', { status: 401 }));
+    if (!auth) return withCors(new Response('Unauthorized', { status: 401 }), origin);
 
     let body: any = {};
     if (req.body && method === 'POST') {
@@ -42,7 +51,7 @@ export default {
 
     const { sessionId, type, payload } = body ?? {};
     if (!sessionId || !type) {
-      return withCors(new Response('Missing sessionId/type', { status: 400 }));
+      return withCors(new Response('Missing sessionId/type', { status: 400 }), origin);
     }
 
     const id = env.SESSION_DO.idFromName(sessionId);
@@ -52,6 +61,6 @@ export default {
       headers: { Authorization: auth },
       body: JSON.stringify({ type, payload }),
     });
-    return withCors(resp);
+    return withCors(resp, origin);
   },
 };
