@@ -3,7 +3,25 @@ set -euo pipefail
 
 # Download Flutter SDK if missing
 if [ ! -d "flutter" ]; then
-  curl -sSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_latest-stable.tar.xz | tar -xJ
+  archive_url="$(
+    python - <<'PY'
+import json, sys, urllib.request
+
+url = "https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json"
+data = json.load(urllib.request.urlopen(url))
+stable_hash = data["current_release"]["stable"]
+base_url = data["base_url"]
+
+for release in data["releases"]:
+    if release["hash"] == stable_hash:
+        print(f"{base_url}/{release['archive']}")
+        sys.exit(0)
+
+sys.exit(1)
+PY
+  )"
+
+  curl -sSL "${archive_url}" | tar -xJ
 fi
 
 export PATH="$PWD/flutter/bin:$PATH"
