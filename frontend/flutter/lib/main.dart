@@ -1,11 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:http/http.dart' as http;
 
 import 'widgets/chat_bubble.dart';
 import 'widgets/typing_dots.dart';
 import 'widgets/voice_bar.dart';
+import 'src/audio_capture.dart';
+
+const _signalEndpoint = 'http://127.0.0.1:8787/signal';
+const _authorizationHeader = 'Bearer demo-token';
+const _targetSampleRate = 16000;
 
 void main() => runApp(const App());
 
@@ -50,6 +57,9 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   RTCPeerConnection? pc;
   RTCDataChannel? dc;
+  late final AudioCapture _audioCapture;
+  final String _sessionId = _makeSessionId();
+  bool _sessionReady = false;
 
   final List<ChatMessage> _messages = [];
   final ScrollController _scroll = ScrollController();
@@ -73,11 +83,13 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
+    _audioCapture = AudioCapture(_handleAudioChunk, targetSampleRate: _targetSampleRate);
     initRTC();
   }
 
   @override
   void dispose() {
+    _audioCapture.stop();
     _speakingTimer?.cancel();
     _ttfaTicker?.cancel();
     _scroll.dispose();
@@ -91,6 +103,12 @@ class _HomeState extends State<Home> {
       ]
     });
 
+    pc!.onIceCandidate = (candidate) {
+      if (candidate != null) {
+        unawaited(_sendIceCandidate(candidate));
+      }
+    };
+
     dc = await pc!.createDataChannel('events', RTCDataChannelInit());
     dc!.onMessage = _onEvent;
 
@@ -98,6 +116,8 @@ class _HomeState extends State<Home> {
     for (final t in stream.getTracks()) {
       pc!.addTrack(t, stream);
     }
+
+    _audioCapture.start(stream);
   }
 
   void _scrollToBottom() {
@@ -229,7 +249,105 @@ class _HomeState extends State<Home> {
   void _sendCancel() {
     try {
       dc?.send(RTCDataChannelMessage(jsonEncode({'type': 'cancel'})));
-    } catch {}
+    } catch (e, st) {
+      debugPrint('[ _startSignaling] error: $e');
+      debugPrint(st.toString());
+    }
+  }
+
+  Future<void> _startSignaling() async {
+    debugPrint('[_startSignaling] triggered, pc=${pc != null}, sessionId=$_sessionId');
+    if (pc == null) return;
+    try {
+      final offer = await pc!.createOffer({'offerToReceiveAudio': false});
+      debugPrint('[_startSignaling] offer created (${offer.type})');
+      await pc!.setLocalDescription(offer);
+      debugPrint('[_startSignaling] local description set');
+      final answer = await _sendOffer(offer);
+      final remoteDesc = RTCSessionDescription(
+        answer['sdp'] as String,
+        answer['type'] as String,
+      );
+      await pc!.setRemoteDescription(remoteDesc);
+      debugPrint('[_startSignaling] remote description set, answer type ${remoteDesc.type}');
+      setState(() => _sessionReady = true);
+    } catch (e, st) {
+      debugPrint('Signal exchange failed: $e\n$st');
+    }
+  }
+
+  Future<Map<String, dynamic>> _sendOffer(RTCSessionDescription offer) async {
+    try {
+      final response = await http.post(
+      Uri.parse(_signalEndpoint),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': _authorizationHeader,
+      },
+      body: jsonEncode({
+        'sessionId': _sessionId,
+        'type': 'offer',
+        'payload': offer.toMap(),
+      }),
+    );
+      if (response.statusCode >= 400) {
+        throw Exception('Offer failed (${response.statusCode}): ${response.body}');
+      }
+      final result = jsonDecode(response.body) as Map<String, dynamic>;
+      debugPrint('[_sendOffer] answer received: ${result['type']}');
+      return result;
+    } catch (e, st) {
+      debugPrint('[_sendOffer] error posting offer: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> _sendIceCandidate(RTCIceCandidate candidate) async {
+    debugPrint('[_sendIceCandidate] candidate ${candidate.candidate}');
+    try {
+      final response = await http.post(
+      Uri.parse(_signalEndpoint),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': _authorizationHeader,
+      },
+      body: jsonEncode({
+        'sessionId': _sessionId,
+        'type': 'ice',
+        'payload': candidate.toMap(),
+      }),
+    );
+      if (response.statusCode >= 400) {
+        debugPrint('ICE publish failed (${response.statusCode}): ${response.body}');
+      } else {
+        debugPrint('[_sendIceCandidate] accepted (${response.statusCode})');
+      }
+    } catch (e, st) {
+      debugPrint('[_sendIceCandidate] error: $e\n$st');
+    }
+  }
+
+  void _handleAudioChunk(List<int> chunk) {
+    debugPrint('[_handleAudioChunk] sessionReady=$_sessionReady state=$_state chunk=${chunk.length}');
+    if (!_sessionReady) return;
+    if (_state != VoiceUiState.listening) return;
+    if (chunk.isEmpty) return;
+    if (dc?.state != RTCDataChannelState.RTCDataChannelOpen) return;
+    _sendAudioChunk(chunk);
+  }
+
+  void _sendAudioChunk(List<int> chunk) {
+    final payload = jsonEncode({'type': 'audio_in', 'data': chunk});
+    try {
+      dc?.send(RTCDataChannelMessage(payload));
+    } catch (e) {
+      debugPrint('Failed to send audio chunk: $e');
+    }
+  }
+
+  static String _makeSessionId() {
+    final rnd = Random();
+    return 'web-${DateTime.now().millisecondsSinceEpoch}-${rnd.nextInt(1 << 31).toRadixString(16)}';
   }
 
   void _onMicTap() {
@@ -242,11 +360,11 @@ class _HomeState extends State<Home> {
   }
 
   void _onInterrupt() {
-    _sendCancel();
-    setState(() {
-      _aiSpeaking = false;
-      _state = VoiceUiState.idle;
-    });
+        _sendCancel();
+        setState(() {
+          _aiSpeaking = false;
+          _state = VoiceUiState.idle;
+        });
   }
 
   @override
@@ -320,6 +438,19 @@ class _HomeState extends State<Home> {
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonal(
+                    onPressed: _sessionReady ? null : _startSignaling,
+                    child: Text(_sessionReady ? 'Signaling ready' : 'Start signaling'),
+                  ),
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child: ListView(
               controller: _scroll,
@@ -339,6 +470,11 @@ class _HomeState extends State<Home> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _sessionReady ? null : _startSignaling,
+        label: Text(_sessionReady ? 'Signaling ready' : 'Start signaling'),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }

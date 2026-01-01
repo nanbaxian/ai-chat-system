@@ -4,4 +4,5 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_webrtc: ^0.10.8
+  flutter_webrtc: 1.2.1
+  http: ^1.6.0

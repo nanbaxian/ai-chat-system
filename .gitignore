@@ -25,8 +25,8 @@ ehthumbs.db
 Icon?
 
 ## Editors and IDEs
-/.vscode/
-/.idea/
+**/.vscode/
+**/.idea/
 *.suo
 *.ntvs*
 *.njsproj
@@ -41,13 +41,13 @@ Icon?
 /backend/build/
 
 ## Flutter project artifacts
-/.dart_tool/
-/.flutter-plugins
-/.flutter-plugins-dependencies
-/.metadata
-/.packages
-/build/
-MERGED_MANIFEST.txt
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.metadata
+**/.packages
+**/build/
+**/MERGED_MANIFEST.txt
 
 ## Flutter frontend
 /frontend/flutter/.dart_tool/
@@ -57,6 +57,24 @@ MERGED_MANIFEST.txt
 /frontend/flutter/.flutter-plugins-dependencies
 /frontend/flutter/.metadata
 /frontend/flutter/.idea/
+
+## Flutter frontend generated output
+/frontend/flutter/.pub-cache/
+/frontend/flutter/.pub/
+/frontend/flutter/coverage/
+/frontend/flutter/doc/api/
+/frontend/flutter/ios/Flutter/.last_build_id
+/frontend/flutter/.swiftpm/
+/frontend/flutter/migrate_working_dir/
+/frontend/flutter/.build/
+/frontend/flutter/.buildlog/
+/frontend/flutter/.history/
+/frontend/flutter/.svn/
+/frontend/flutter/app.*.symbols
+/frontend/flutter/app.*.map.json
+/frontend/flutter/android/app/debug/
+/frontend/flutter/android/app/profile/
+/frontend/flutter/android/app/release/
 
 ## Temporary files
 *.tmp
