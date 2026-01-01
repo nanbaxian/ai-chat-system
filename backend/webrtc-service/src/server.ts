@@ -290,6 +290,9 @@ app.get('/health', (req, res) => {
 });
 
 const port = Number(process.env.WEBRTC_PORT ?? process.env.PORT ?? 3001);
-app.listen(port, () => {
-  console.log(`WebRTC signal server listening on port ${port}`);
+const host = process.env.HOST ?? '127.0.0.1';
+
+app.listen(port, host, () => {
+  console.log(`WebRTC signal server listening on http://${host}:${port}`);
 });
+
