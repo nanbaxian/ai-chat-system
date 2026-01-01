@@ -6,3 +6,11 @@ dependencies:
     sdk: flutter
   flutter_webrtc: 1.2.1
   http: ^1.6.0
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/NotoSans-Regular.ttf
+        - asset: assets/fonts/NotoSans-Bold.ttf
