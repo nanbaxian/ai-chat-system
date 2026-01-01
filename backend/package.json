@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "wrangler build",
     "dev": "wrangler dev --local",
     "dev:remote": "wrangler dev",
     "deploy": "wrangler deploy",
