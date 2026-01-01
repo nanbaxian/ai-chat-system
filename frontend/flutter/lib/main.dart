@@ -10,8 +10,14 @@ import 'widgets/typing_dots.dart';
 import 'widgets/voice_bar.dart';
 import 'src/audio_capture.dart';
 
-const _signalEndpoint = 'http://127.0.0.1:8787/signal';
-const _authorizationHeader = 'Bearer demo-token';
+const _signalEndpoint = String.fromEnvironment(
+  'SIGNAL_ENDPOINT',
+  defaultValue: 'https://voice-ai-demo.flashcodingcompany1.workers.dev/signal',
+);
+const _authorizationHeader = String.fromEnvironment(
+  'SIGNAL_AUTHORIZATION',
+  defaultValue: 'Bearer demo-token',
+);
 const _targetSampleRate = 16000;
 
 void main() => runApp(const App());

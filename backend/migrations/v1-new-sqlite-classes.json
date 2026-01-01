@@ -1,0 +1,9 @@
+{
+  "tag": "v1",
+  "new_sqlite_classes": [
+    {
+      "name": "SessionDO",
+      "script": "src/worker.ts"
+    }
+  ]
+}
