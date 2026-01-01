@@ -2,7 +2,7 @@ import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { RTCPeerConnection } from 'wrtc';
+import wrtc from 'wrtc';
 import { AssemblyAIStreamingSTT } from '../../src/providers/stt/assemblyai.ts';
 import { DeepInfraLLM } from '../../src/providers/llm/deepinfra.ts';
 import { PollyStreamingTTS } from '../../src/providers/tts/polly_streaming.ts';
@@ -43,7 +43,7 @@ class SessionManager {
 }
 
 class Session {
-  private pc: RTCPeerConnection;
+  private pc: wrtc.RTCPeerConnection;
   private dc?: RTCDataChannel;
   private stt?: AssemblyAIStreamingSTT;
   private llm?: DeepInfraLLM;
@@ -52,7 +52,7 @@ class Session {
   private destroyed = false;
 
   constructor(private id: string, private env: NodeJS.ProcessEnv, private onDestroy: () => void) {
-    this.pc = new RTCPeerConnection({
+    this.pc = new wrtc.RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
     });
     this.pc.ondatachannel = (event) => void this.handleDataChannel(event.channel);
