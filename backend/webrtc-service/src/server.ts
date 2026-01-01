@@ -31,6 +31,7 @@ class SessionManager {
     if (existing) {
       existing.close();
     }
+    console.log(`[signal] creating session ${sessionId}`);
     const session = new Session(sessionId, process.env, () => this.sessions.delete(sessionId));
     this.sessions.set(sessionId, session);
     return session;
@@ -65,9 +66,19 @@ class Session {
         this.close();
       }
     };
+    this.log('peer connection created');
+  }
+
+  private log(message: string, ...args: any[]) {
+    console.log(`[session:${this.id}] ${message}`, ...args);
+  }
+
+  private error(message: string, ...args: any[]) {
+    console.error(`[session:${this.id}] ${message}`, ...args);
   }
 
   async handleOffer(desc: RTCSessionDescriptionInit) {
+    this.log('handling offer');
     await this.pc.setRemoteDescription(desc);
     const answer = await this.pc.createAnswer();
     await this.pc.setLocalDescription(answer);
@@ -79,6 +90,7 @@ class Session {
 
   async addIceCandidate(candidate?: RTCIceCandidateInit) {
     if (!candidate) return;
+    this.log('adding ice candidate', candidate.sdpMid);
     await this.pc.addIceCandidate(candidate);
   }
 
@@ -93,6 +105,7 @@ class Session {
       this.pc.close();
     } catch {}
     this.onDestroy();
+    this.log('session destroyed');
   }
 
   private async waitForIceGathering() {
@@ -117,14 +130,17 @@ class Session {
     this.dc = channel;
     channel.onmessage = (m) => this.handleMessage(m.data);
     channel.onclose = () => this.close();
+    this.log('datachannel opened');
 
     this.stt = new AssemblyAIStreamingSTT(this.env.ASSEMBLYAI_API_KEY ?? '');
     this.stt.onPartialText((text) => this.emit({ type: 'stt.partial', text }));
     this.stt.onFinalText((text) => void this.handleFinalTranscript(text));
+    this.log('starting STT websocket');
     try {
       await this.stt.start();
+      this.log('STT websocket ready');
     } catch (error) {
-      console.warn('STT failed to start', error);
+      this.error('STT failed to start', error);
       this.close();
       return;
     }
@@ -136,10 +152,12 @@ class Session {
       onTTFA: (name, ms) => this.emit({ type: 'metrics.ttfa', provider: name, ms } as any)
     });
     this.ttsRouter.onAudio((audio) => this.emit({ type: 'tts.audio', data: audio }));
+    this.log('starting TTS router');
     try {
       await this.ttsRouter.start();
+      this.log('TTS router ready');
     } catch (error) {
-      console.warn('TTS router failed to start', error);
+      this.error('TTS router failed to start', error);
       this.close();
       return;
     }
@@ -193,11 +211,13 @@ class Session {
     } catch {
       return;
     }
+    this.log('received datachannel event', evt.type);
     if (evt.type === 'audio_in' && Array.isArray(evt.data)) {
       const buffer = this.chunkToArrayBuffer(evt.data);
       if (buffer) this.stt.sendAudio(buffer);
     }
     if (evt.type === 'cancel') {
+      this.log('cancel requested');
       this.abortAll();
     }
   }
@@ -205,6 +225,7 @@ class Session {
   private async handleFinalTranscript(text: string) {
     const trimmed = (text ?? '').toString().trim();
     if (trimmed.length === 0) return;
+    this.log('final transcript', trimmed);
     this.emit({ type: 'stt.final', text: trimmed });
     await this.ttsRouter?.sendText('Hmm.');
     this.llmAbort?.abort();
@@ -213,6 +234,7 @@ class Session {
       await this.llm?.stream(
         trimmed,
         async (delta) => {
+          this.log('llm delta', delta);
           this.emit({ type: 'llm.delta', text: delta });
           await this.ttsRouter?.sendText(delta);
         },
@@ -229,6 +251,7 @@ class Session {
 
   private emit(evt: any) {
     if (this.dc?.readyState !== 'open') return;
+    this.log('sending event', evt.type);
     try {
       this.dc.send(JSON.stringify(evt));
     } catch {
@@ -237,6 +260,7 @@ class Session {
   }
 
   private abortAll() {
+    this.log('aborting STT/LLM/TTS');
     this.stt?.close();
     this.llmAbort?.abort();
     this.ttsRouter?.abort();
@@ -266,6 +290,7 @@ app.post('/signal', async (req, res) => {
 
   try {
     if (type === 'offer') {
+      console.log(`[signal] offer received for ${sessionId}`);
       const session = manager.create(sessionId);
       const answer = await session.handleOffer(payload);
       return res.json(answer);
@@ -280,7 +305,7 @@ app.post('/signal', async (req, res) => {
     }
     return res.status(400).json({ error: 'unsupported signal type' });
   } catch (error) {
-    console.error('signal error', error);
+    console.error(`[signal] error handling ${type} for ${sessionId}`, error);
     return res.status(500).json({ error: 'signal exchange failed' });
   }
 });
@@ -295,4 +320,3 @@ const host = process.env.HOST ?? '127.0.0.1';
 app.listen(port, host, () => {
   console.log(`WebRTC signal server listening on http://${host}:${port}`);
 });
-
