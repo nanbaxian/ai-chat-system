@@ -12,7 +12,7 @@ import 'src/audio_capture.dart';
 
 const _signalEndpoint = String.fromEnvironment(
   'SIGNAL_ENDPOINT',
-  defaultValue: 'https://voice-ai-demo.flashcodingcompany1.workers.dev/signal',
+  defaultValue: 'https://aichatservice.flashcoding.ca/signal',
 );
 const _authorizationHeader = String.fromEnvironment(
   'SIGNAL_AUTHORIZATION',
