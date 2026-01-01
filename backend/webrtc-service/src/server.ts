@@ -278,8 +278,16 @@ class Session {
 
 const manager = new SessionManager();
 
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    callback(null, true);
+  },
+  methods: ['POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
 const app = express();
-app.use(cors());
+app.use(cors(corsOptions));
+app.options('/signal', cors(corsOptions));
 app.use(express.json({ limit: '6mb' }));
 
 app.post('/signal', async (req, res) => {
