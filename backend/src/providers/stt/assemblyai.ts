@@ -42,9 +42,30 @@ export class AssemblyAIStreamingSTT {
     this.ws.on('message', (msg) => {
       const text = msg.toString();
       console.log('[STT] websocket message', text.length > 160 ? `${text.slice(0, 160)}…` : text);
-      const data = JSON.parse(text);
-      if (data.text && !data.is_final) this.onPartial?.(data.text);
-      if (data.text && data.is_final) this.onFinal?.(data.text);
+      let data: Record<string, any>;
+      try {
+        data = JSON.parse(text);
+      } catch (error) {
+        console.error('[STT] failed to parse message', error);
+        return;
+      }
+      const { type, transcript = '', turn_is_formatted, end_of_turn, end_of_turn_confidence } = data;
+      if (type === 'Begin') {
+        console.log('[STT] session began', data.id, 'expires', data.expires_at);
+        return;
+      }
+      if (type === 'Turn') {
+        const formatted = turn_is_formatted ? 'formatted' : 'raw';
+        console.log('[STT] turn', formatted, 'transcript=', transcript, 'confidence=', end_of_turn_confidence, 'end_of_turn=', end_of_turn);
+        if (transcript) this.onPartial?.(transcript);
+        if (end_of_turn) this.onFinal?.(transcript);
+        return;
+      }
+      if (type === 'Termination') {
+        console.log('[STT] session terminated', data.audio_duration_seconds, 's audio', data.session_duration_seconds, 's session');
+        return;
+      }
+      console.log('[STT] unknown message type', type);
     });
   }
 
