@@ -27,6 +27,7 @@ export class DeepgramStreamingTTS implements StreamingTTS {
 
     // Binary audio frames arrive as WS binary messages
     (this.ws as any).on?.('message', (raw: any) => {
+      console.log('[deepgram] message received', typeof raw, Buffer.isBuffer(raw) ? raw.byteLength : undefined);
       // Deepgram sends audio as binary and control messages as JSON
       if (Buffer.isBuffer(raw)) {
         const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
@@ -35,9 +36,10 @@ export class DeepgramStreamingTTS implements StreamingTTS {
       }
       try {
         const msg = JSON.parse(raw.toString());
-        // ignore metadata / flushed / warnings
-        void msg;
-      } catch { /* ignore */ }
+        console.log('[deepgram] control message', msg);
+      } catch (error) {
+        console.error('[deepgram] parse error', error);
+      }
     });
   }
 

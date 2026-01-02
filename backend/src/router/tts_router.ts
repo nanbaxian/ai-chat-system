@@ -55,14 +55,17 @@ export class SmartTTSRouter {
 
     for (const p of ranked) {
       try {
+        console.log(`SmartTTSRouter: attempting to start ${p.name}`);
         await p.impl.start();
         this.active = p;
         if (this.audioCb) p.impl.onAudio(this.wrapAudioCb(p.name));
         this.metrics.writeAE('tts.select', { provider: p.name, ok: true, costScore: p.costScore });
         this.onProviderSelected?.(p.name);
         await this.metrics.save(this.stats);
+        console.log(`SmartTTSRouter: provider ${p.name} selected`);
         return;
-      } catch {
+      } catch (error) {
+        console.error(`SmartTTSRouter: provider ${p.name} start failed`, error);
         this.metrics.markFailure(this.stats, p.name);
         this.metrics.writeAE('tts.start_fail', { provider: p.name, ok: false, costScore: p.costScore });
       }
@@ -79,6 +82,7 @@ export class SmartTTSRouter {
 
   private wrapAudioCb(providerName: string) {
     return (buf: ArrayBuffer) => {
+      console.log(`SmartTTSRouter: audio chunk from ${providerName} length=${buf.byteLength}`);
       if (!this.firstAudioSeen && this.sendStartedAt) {
         this.firstAudioSeen = true;
         const ms = Date.now() - this.sendStartedAt;
@@ -104,8 +108,11 @@ export class SmartTTSRouter {
       this.lastTTFAMs = undefined;
     }
     try {
+      console.log(`SmartTTSRouter: sending text to ${this.active.name}`);
       await (this.active.impl as any).sendText(text);
+      console.log(`SmartTTSRouter: sendText succeeded for ${this.active.name}`);
     } catch {
+      console.error(`SmartTTSRouter: sendText failed for ${this.active.name}`);
       // mark failure + switch to next best and retry once
       this.metrics.markFailure(this.stats, this.active.name);
       this.metrics.writeAE('tts.send_fail', { provider: this.active.name, ok: false, costScore: this.active.costScore });
@@ -118,15 +125,18 @@ export class SmartTTSRouter {
 
       for (const p of ranked) {
         try {
+          console.log(`SmartTTSRouter: failover starting provider ${p.name}`);
           await p.impl.start();
           this.active = p;
           if (this.audioCb) p.impl.onAudio(this.wrapAudioCb(p.name));
           this.metrics.writeAE('tts.failover', { provider: p.name, ok: true, costScore: p.costScore });
           this.onProviderSelected?.(p.name);
           await (this.active.impl as any).sendText(text);
+          console.log(`SmartTTSRouter: failover sendText succeeded for ${p.name}`);
           await this.metrics.save(this.stats);
           return;
         } catch {
+          console.error(`SmartTTSRouter: failover failed for provider ${p.name}`);
           this.metrics.markFailure(this.stats, p.name);
           this.metrics.writeAE('tts.failover_fail', { provider: p.name, ok: false, costScore: p.costScore });
         }

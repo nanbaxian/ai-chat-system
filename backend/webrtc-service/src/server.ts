@@ -238,6 +238,15 @@ class Session {
     ];
   }
 
+  async testTts(text: string) {
+    if (!this.ttsRouter) {
+      throw new Error('TTS router not ready');
+    }
+    this.log('manual TTS test send', text);
+    await this.ttsRouter.sendText(text);
+    this.log('manual TTS test acknowledged');
+  }
+
   private async flushPendingSpeech() {
     const candidate = this.pendingSpeech.trim();
     if (candidate.length === 0) return;
@@ -281,7 +290,12 @@ class Session {
     this.log('final transcript', trimmed);
     this.emit({ type: 'stt.final', text: trimmed });
     this.log('notifying TTS router that transcript arrived');
-    await this.ttsRouter?.sendText('Hmm.');
+    try {
+      await this.ttsRouter?.sendText('Hmm.');
+      this.log('tts router initial prompt acknowledged');
+    } catch (error) {
+      this.error('tts router initial prompt failed', error);
+    }
     this.llmAbort?.abort();
     this.llmAbort = new AbortController();
     try {
@@ -307,9 +321,13 @@ class Session {
           const candidate = this.pendingSpeech.trim();
           this.pendingSpeech = '';
           if (candidate.length === 0) return;
-          this.log('flushing sentence to TTS router', candidate);
-          await this.ttsRouter?.sendText(candidate);
-          this.log('tts router acknowledged sentence');
+      this.log('flushing sentence to TTS router', candidate);
+      try {
+        await this.ttsRouter?.sendText(candidate);
+        this.log('tts router acknowledged sentence');
+      } catch (error) {
+        this.error('tts router sendText failed', error);
+      }
         },
         async () => {
           this.emit({ type: 'llm.final' });
@@ -390,6 +408,25 @@ app.post('/signal', async (req, res) => {
   } catch (error) {
     console.error(`[signal] error handling ${type} for ${sessionId}`, error);
     return res.status(500).json({ error: 'signal exchange failed' });
+  }
+});
+
+app.post('/sessions/:id/tts-test', async (req, res) => {
+  const sessionId = req.params.id;
+  const { text } = req.body as { text?: string };
+  const session = manager.get(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+  if (!text || text.trim().length === 0) {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  try {
+    await session.testTts(text.trim());
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error(`[signal] tts-test failed for ${sessionId}`, error);
+    return res.status(500).json({ error: 'tts test failed' });
   }
 });
 
