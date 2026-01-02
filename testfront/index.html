@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Front STT</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f2f7fb;
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #0f172a;
+      }
+      .card {
+        background: white;
+        padding: 24px;
+        border-radius: 16px;
+        box-shadow: 0 20px 35px rgba(15, 23, 42, 0.08);
+        max-width: 520px;
+        width: 100%;
+        text-align: center;
+      }
+      button {
+        border: none;
+        padding: 12px 30px;
+        border-radius: 999px;
+        font-size: 16px;
+        cursor: pointer;
+        background: linear-gradient(135deg, #10a37f, #38bdf8);
+        color: white;
+        transition: transform 0.2s ease;
+      }
+      button:active {
+        transform: scale(0.97);
+      }
+      #status {
+        margin-top: 12px;
+        color: #475569;
+        font-size: 14px;
+      }
+      .transcript {
+        margin-top: 20px;
+        text-align: left;
+        background: #f1f5f9;
+        padding: 16px;
+        border-radius: 12px;
+        min-height: 120px;
+        font-size: 16px;
+        line-height: 1.5;
+        color: #0b172a;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>本地语音识别 (Web Speech)</h1>
+      <p>按下麦克风后开始讲话。浏览器会调用系统自带的 STT，并将文字片段实时展示出来。</p>
+      <button id="toggle">开始识别</button>
+      <div id="status">未启动</div>
+      <div class="transcript" id="transcript">等待识别结果...</div>
+    </div>
+    <script>
+      const toggleBtn = document.getElementById("toggle");
+      const statusEl = document.getElementById("status");
+      const transcriptEl = document.getElementById("transcript");
+
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        statusEl.textContent = "当前浏览器不支持 Web Speech API，请切换 Chrome。";
+        toggleBtn.disabled = true;
+      } else {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "zh-CN";
+        let listening = false;
+        let finalTranscript = "";
+
+        recognition.onstart = () => {
+          listening = true;
+          statusEl.textContent = "正在录音，请讲话...";
+          toggleBtn.textContent = "停止识别";
+        };
+
+        recognition.onend = () => {
+          listening = false;
+          statusEl.textContent = "识别已停止，点击重新开始";
+          toggleBtn.textContent = "开始识别";
+        };
+
+        recognition.onerror = (event) => {
+          console.warn("识别错误：", event.error);
+          statusEl.textContent = "识别出错：" + event.error;
+        };
+
+        recognition.onresult = (event) => {
+          let interimTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + "\n";
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+          transcriptEl.textContent =
+            finalTranscript + (interimTranscript ? interimTranscript : "");
+        };
+
+        toggleBtn.addEventListener("click", () => {
+          if (listening) {
+            recognition.stop();
+          } else {
+            finalTranscript = "";
+            transcriptEl.textContent = "等待识别结果...";
+            recognition.start();
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
