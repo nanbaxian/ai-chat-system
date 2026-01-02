@@ -133,8 +133,14 @@ class Session {
     this.log('datachannel opened');
 
     this.stt = new AssemblyAIStreamingSTT(this.env.ASSEMBLYAI_API_KEY ?? '');
-    this.stt.onPartialText((text) => this.emit({ type: 'stt.partial', text }));
-    this.stt.onFinalText((text) => void this.handleFinalTranscript(text));
+    this.stt.onPartialText((text) => {
+      this.log('STT partial', text.length);
+      this.emit({ type: 'stt.partial', text });
+    });
+    this.stt.onFinalText((text) => {
+      this.log('STT final', text.trim().substring(0, Math.min(64, text.length)));
+      void this.handleFinalTranscript(text);
+    });
     this.log('starting STT websocket');
     try {
       await this.stt.start();
@@ -151,7 +157,10 @@ class Session {
       onProviderSelected: (name) => this.emit({ type: 'tts.provider', name } as any),
       onTTFA: (name, ms) => this.emit({ type: 'metrics.ttfa', provider: name, ms } as any)
     });
-    this.ttsRouter.onAudio((audio) => this.emit({ type: 'tts.audio', data: audio }));
+    this.ttsRouter.onAudio((audio) => {
+      this.log('TTS audio chunk', audio.byteLength);
+      this.emit({ type: 'tts.audio', data: audio });
+    });
     this.log('starting TTS router');
     try {
       await this.ttsRouter.start();
@@ -212,6 +221,9 @@ class Session {
       return;
     }
     this.log('received datachannel event', evt.type);
+    if (evt.type === 'audio_in' && Array.isArray(evt.data)) {
+      this.log('audio chunk length', evt.data.length);
+    }
     if (evt.type === 'audio_in' && Array.isArray(evt.data)) {
       const buffer = this.chunkToArrayBuffer(evt.data);
       if (buffer) this.stt.sendAudio(buffer);

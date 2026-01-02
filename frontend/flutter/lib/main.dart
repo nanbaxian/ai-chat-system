@@ -73,6 +73,8 @@ class _HomeState extends State<Home> {
 
   VoiceUiState _state = VoiceUiState.idle;
   bool _micOn = true;
+  int _chunkMeter = 0;
+  DateTime _chunkMeterStart = DateTime.now();
 
   // provider + metrics
   String _ttsProvider = 'Auto';
@@ -110,6 +112,8 @@ class _HomeState extends State<Home> {
       ]
     });
 
+    debugPrint('[initRTC] peer connection ready');
+
     pc!.onIceCandidate = (candidate) {
       if (candidate != null) {
         unawaited(_sendIceCandidate(candidate));
@@ -120,11 +124,13 @@ class _HomeState extends State<Home> {
     dc!.onMessage = _onEvent;
 
     final stream = await navigator.mediaDevices.getUserMedia({'audio': true});
+    debugPrint('[initRTC] got user media stream tracks=${stream.getTracks().length}');
     for (final t in stream.getTracks()) {
       pc!.addTrack(t, stream);
     }
 
     _audioCapture.start(stream);
+    debugPrint('[initRTC] audio capture started');
   }
 
   void _scrollToBottom() {
@@ -340,11 +346,24 @@ class _HomeState extends State<Home> {
   }
 
   void _handleAudioChunk(List<int> chunk) {
-    debugPrint('[_handleAudioChunk] sessionReady=$_sessionReady state=$_state chunk=${chunk.length} micOn=$_micOn');
-    if (!_sessionReady) return;
-    if (_state != VoiceUiState.listening) return;
-    if (chunk.isEmpty) return;
-    if (dc?.state != RTCDataChannelState.RTCDataChannelOpen) return;
+    debugPrint('[_handleAudioChunk] entry chunk=${chunk.length}');
+    final reason = <String>[];
+    if (!_sessionReady) reason.add('!sessionReady');
+    if (_state != VoiceUiState.listening) reason.add('state=$_state');
+    if (chunk.isEmpty) reason.add('chunk empty');
+    if (dc?.state != RTCDataChannelState.RTCDataChannelOpen) reason.add('dc=${dc?.state}');
+    if (reason.isNotEmpty) {
+      debugPrint('[_handleAudioChunk] skipped (${reason.join(', ')}); chunk=${chunk.length} micOn=$_micOn');
+      return;
+    }
+    debugPrint('[_handleAudioChunk] allowed chunk=${chunk.length} micOn=$_micOn dc=${dc?.state}');
+    _chunkMeter += chunk.length;
+    final now = DateTime.now();
+    if (now.difference(_chunkMeterStart) >= const Duration(seconds: 1)) {
+      debugPrint('[_handleAudioChunk] meter: ${_chunkMeter} samples/sec');
+      _chunkMeter = 0;
+      _chunkMeterStart = now;
+    }
     _sendAudioChunk(chunk);
   }
 
