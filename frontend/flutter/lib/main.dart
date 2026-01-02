@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:html' as html;
+import 'dart:js_util' as js_util;
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
@@ -67,6 +70,7 @@ class _HomeState extends State<Home> {
   late final AudioCapture _audioCapture;
   final String _sessionId = _makeSessionId();
   bool _sessionReady = false;
+  late final dynamic _audioContext;
 
   final List<ChatMessage> _messages = [];
   final ScrollController _scroll = ScrollController();
@@ -93,7 +97,20 @@ class _HomeState extends State<Home> {
   void initState() {
     super.initState();
     _audioCapture = AudioCapture(_handleAudioChunk, targetSampleRate: _targetSampleRate);
+    _audioContext = _createAudioContext();
     initRTC();
+  }
+
+  dynamic _createAudioContext() {
+    final constructor =
+        js_util.getProperty(html.window, 'AudioContext') ?? js_util.getProperty(html.window, 'webkitAudioContext');
+    if (constructor == null) return null;
+    try {
+      return js_util.callConstructor(constructor, []);
+    } catch (error) {
+      debugPrint('[_createAudioContext] failed to construct AudioContext: $error');
+      return null;
+    }
   }
 
   @override
@@ -102,6 +119,11 @@ class _HomeState extends State<Home> {
     _speakingTimer?.cancel();
     _ttfaTicker?.cancel();
     _scroll.dispose();
+    if (_audioContext != null) {
+      try {
+        js_util.callMethod(_audioContext, 'close', []);
+      } catch (_) {}
+    }
     super.dispose();
   }
 
@@ -209,6 +231,46 @@ class _HomeState extends State<Home> {
     });
   }
 
+  void _playTtsAudioChunk(String base64Data, num sampleRate) {
+    if (base64Data.isEmpty) return;
+    if (_audioContext == null) return;
+    debugPrint('[_playTtsAudioChunk] chunkLen=${base64Data.length} sampleRate=$sampleRate');
+    try {
+      try {
+        js_util.callMethod(_audioContext, 'resume', []);
+      } catch (_) {}
+      final decoded = base64Decode(base64Data);
+      debugPrint('[_playTtsAudioChunk] decodedBytes=${decoded.length}');
+      final frameCount = decoded.length ~/ 2;
+      final constructor = js_util.getProperty(_audioContext, 'createBuffer');
+      if (constructor == null) return;
+      final audioBuffer = js_util.callMethod(
+        _audioContext,
+        'createBuffer',
+        [1, frameCount, sampleRate.toDouble()],
+      );
+      final channelData = js_util.callMethod(audioBuffer, 'getChannelData', [0]) as Float32List;
+      final bytes = ByteData.sublistView(decoded);
+      for (var i = 0; i < frameCount; i++) {
+        channelData[i] = (bytes.getInt16(i * 2, Endian.little) / 0x7fff).clamp(-1.0, 1.0);
+      }
+      final source = js_util.callMethod(_audioContext, 'createBufferSource', []);
+      js_util.setProperty(source, 'buffer', audioBuffer);
+      js_util.callMethod(source, 'connect', [js_util.getProperty(_audioContext, 'destination')]);
+      js_util.callMethod(source, 'start', [0]);
+      js_util.callMethod(source, 'addEventListener', [
+        'ended',
+        js_util.allowInterop((_) {
+          try {
+            js_util.callMethod(source, 'disconnect', []);
+          } catch (_) {}
+        })
+      ]);
+    } catch (error, stack) {
+      debugPrint('[_playTtsAudioChunk] $error\n$stack');
+    }
+  }
+
   void _onEvent(RTCDataChannelMessage msg) {
     final evt = jsonDecode(msg.text);
     final type = evt['type'];
@@ -249,6 +311,9 @@ class _HomeState extends State<Home> {
           break;
 
         case 'tts.audio':
+          final data = (evt['data'] ?? '').toString();
+          final rate = evt['sampleRate'] is num ? (evt['sampleRate'] as num).toDouble() : 24000.0;
+          _playTtsAudioChunk(data, rate);
           _markSpeakingPulse();
           _state = VoiceUiState.speaking;
           break;

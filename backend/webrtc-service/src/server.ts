@@ -13,6 +13,30 @@ import { SmartTTSRouter } from '../../src/router/tts_router.ts';
 import type { Event as ProtocolEvent } from '../../src/protocol/events.ts';
 import { sharedDurableState } from './state.ts';
 
+const AUDIO_SAMPLE_RATE = 24000;
+
+function extractDeltaText(raw: string) {
+  if (!raw) return '';
+  const lines = raw.split(/\r?\n/);
+  let content = '';
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+    const payload = trimmed.substring(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    try {
+      const parsed = JSON.parse(payload);
+      const deltaValue = parsed?.choices?.[0]?.delta?.content;
+      if (typeof deltaValue === 'string' && deltaValue.length > 0) {
+        content += deltaValue;
+      }
+    } catch {
+      // ignore parsing errors
+    }
+  }
+  return content;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -54,6 +78,8 @@ class Session {
   private ttsRouter?: SmartTTSRouter;
   private llmAbort?: AbortController;
   private destroyed = false;
+  private pendingSpeech = '';
+  private lastFinalTranscript = '';
 
   constructor(private id: string, private env: NodeJS.ProcessEnv, private onDestroy: () => void) {
     this.pc = new wrtc.RTCPeerConnection({
@@ -158,8 +184,9 @@ class Session {
       onTTFA: (name, ms) => this.emit({ type: 'metrics.ttfa', provider: name, ms } as any)
     });
     this.ttsRouter.onAudio((audio) => {
-      this.log('TTS audio chunk', audio.byteLength);
-      this.emit({ type: 'tts.audio', data: audio });
+      const chunk = Buffer.from(audio);
+      this.log('TTS audio chunk', chunk.byteLength);
+      this.emit({ type: 'tts.audio', data: chunk.toString('base64'), sampleRate: AUDIO_SAMPLE_RATE });
     });
     this.log('starting TTS router');
     try {
@@ -211,6 +238,15 @@ class Session {
     ];
   }
 
+  private async flushPendingSpeech() {
+    const candidate = this.pendingSpeech.trim();
+    if (candidate.length === 0) return;
+    this.pendingSpeech = '';
+    this.log('flushing pending speech at stream end', candidate);
+    await this.ttsRouter?.sendText(candidate);
+    this.log('tts router acknowledged sentence');
+  }
+
   private handleMessage(payload: string | ArrayBuffer | Blob) {
     if (!this.stt) return;
     if (typeof payload !== 'string') return;
@@ -237,6 +273,11 @@ class Session {
   private async handleFinalTranscript(text: string) {
     const trimmed = (text ?? '').toString().trim();
     if (trimmed.length === 0) return;
+    if (trimmed === this.lastFinalTranscript) {
+      this.log('final transcript duplicate ignored', trimmed);
+      return;
+    }
+    this.lastFinalTranscript = trimmed;
     this.log('final transcript', trimmed);
     this.emit({ type: 'stt.final', text: trimmed });
     this.log('notifying TTS router that transcript arrived');
@@ -248,12 +289,31 @@ class Session {
       await this.llm?.stream(
         trimmed,
         async (delta) => {
-          this.log('llm delta', delta);
-          this.emit({ type: 'llm.delta', text: delta });
-          await this.ttsRouter?.sendText(delta);
+          const raw = (delta ?? '').toString();
+          const deltaText = extractDeltaText(raw);
+          this.log('llm delta', deltaText);
+          this.emit({ type: 'llm.delta', text: deltaText });
+          if (deltaText.length === 0) {
+            this.log('zero-length delta, buffering for punctuation');
+            return;
+          }
+          this.pendingSpeech += deltaText;
+          const trimmed = deltaText.trim();
+          const shouldFlush = trimmed.length > 0 && /[.?!]$/.test(trimmed);
+          if (!shouldFlush) {
+            this.log('pending speech buffer', this.pendingSpeech);
+            return;
+          }
+          const candidate = this.pendingSpeech.trim();
+          this.pendingSpeech = '';
+          if (candidate.length === 0) return;
+          this.log('flushing sentence to TTS router', candidate);
+          await this.ttsRouter?.sendText(candidate);
+          this.log('tts router acknowledged sentence');
         },
-        () => {
+        async () => {
           this.emit({ type: 'llm.final' });
+          await this.flushPendingSpeech();
           this.log('LLM stream completed');
         },
         this.llmAbort.signal
