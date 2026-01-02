@@ -184,6 +184,7 @@ class Session {
       onTTFA: (name, ms) => this.emit({ type: 'metrics.ttfa', provider: name, ms } as any)
     });
     this.ttsRouter.onAudio((audio) => {
+      this.log('TTS audio', audio.byteLength);
       const chunk = Buffer.from(audio);
       this.log('TTS audio chunk', chunk.byteLength);
       this.emit({ type: 'tts.audio', data: chunk.toString('base64'), sampleRate: AUDIO_SAMPLE_RATE });

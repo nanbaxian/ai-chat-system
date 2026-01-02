@@ -6,6 +6,19 @@ import { ElevenLabsStreamingTTS } from '../providers/tts/elevenlabs_ws.ts';
 import { DeepgramStreamingTTS } from '../providers/tts/deepgram_ws.ts';
 import { SmartTTSRouter } from '../router/tts_router.ts';
 
+const DEFAULT_TTS_SAMPLE_RATE = 24000;
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  if (buffer.byteLength === 0) return '';
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 export class SessionDO {
   pc: RTCPeerConnection | null = null;
   dc: RTCDataChannel | null = null;
@@ -14,8 +27,11 @@ export class SessionDO {
   llm?: DeepInfraLLM;
   ttsRouter?: SmartTTSRouter;
   llmAbort?: AbortController;
+  private readonly audioSampleRate: number;
 
-  constructor(private state: DurableObjectState, private env: any) {}
+  constructor(private state: DurableObjectState, private env: any) {
+    this.audioSampleRate = Number(env.DEEPGRAM_SAMPLE_RATE ?? DEFAULT_TTS_SAMPLE_RATE);
+  }
 
   async fetch(req: Request) {
     const url = new URL(req.url);
@@ -75,7 +91,12 @@ export class SessionDO {
         onTTFA: (name, ms) => this.emit({ type: 'metrics.ttfa', provider: name, ms } as any),
       });
 
-      this.ttsRouter.onAudio((audio) => this.emit({ type: 'tts.audio', data: audio }));
+      this.ttsRouter.onAudio((audio) => {
+        console.log('Emitting audio chunk of size:', audio.byteLength);
+        const chunk = arrayBufferToBase64(audio);
+        console.log('Emitting audio chunk (base64) size:', chunk.length);
+        this.emit({ type: 'tts.audio', data: chunk, sampleRate: this.audioSampleRate });
+      });
       await this.ttsRouter.start();
 
       // Send initial provider to UI (in case hooks fired before DC listener ready)
