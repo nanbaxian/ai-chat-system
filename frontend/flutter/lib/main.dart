@@ -71,6 +71,8 @@ class _HomeState extends State<Home> {
   final String _sessionId = _makeSessionId();
   bool _sessionReady = false;
   late final dynamic _audioContext;
+  html.MediaStream? _localStream;
+  bool _audioCaptureStarted = false;
 
   final List<ChatMessage> _messages = [];
   final ScrollController _scroll = ScrollController();
@@ -153,8 +155,16 @@ class _HomeState extends State<Home> {
       pc!.addTrack(t, stream);
     }
 
+    _localStream = stream;
+  }
+
+  void _ensureAudioCapture() {
+    if (_audioCaptureStarted) return;
+    final stream = _localStream;
+    if (stream == null) return;
     _audioCapture.start(stream);
-    debugPrint('[initRTC] audio capture started');
+    _audioCaptureStarted = true;
+    debugPrint('[audio] capture started');
   }
 
   void _scrollToBottom() {
@@ -460,6 +470,7 @@ class _HomeState extends State<Home> {
     } else {
       debugPrint('[_onMicTap] no active turn to cancel (sessionReady=$_sessionReady state=$_state)');
     }
+    _ensureAudioCapture();
     _audioCapture.resume();
     debugPrint('[_onMicTap] trigger mic, state=$_state');
     setState(() {
