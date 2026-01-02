@@ -12,7 +12,7 @@ import 'src/audio_capture.dart';
 
 const _signalEndpoint = String.fromEnvironment(
   'SIGNAL_ENDPOINT',
-  defaultValue: 'https://aichatservice.flashcoding.ca/signal',
+  defaultValue: 'http://127.0.0.1:3001/signal',
 );
 const _authorizationHeader = String.fromEnvironment(
   'SIGNAL_AUTHORIZATION',
@@ -254,7 +254,12 @@ class _HomeState extends State<Home> {
   }
 
   void _sendCancel() {
+    if (dc?.state != RTCDataChannelState.RTCDataChannelOpen) {
+      debugPrint('[_sendCancel] data channel not open (${dc?.state}), skipping cancel');
+      return;
+    }
     try {
+      debugPrint('[_sendCancel] clearing active request');
       dc?.send(RTCDataChannelMessage(jsonEncode({'type': 'cancel'})));
     } catch (e, st) {
       debugPrint('[ _startSignaling] error: $e');
@@ -335,7 +340,7 @@ class _HomeState extends State<Home> {
   }
 
   void _handleAudioChunk(List<int> chunk) {
-    debugPrint('[_handleAudioChunk] sessionReady=$_sessionReady state=$_state chunk=${chunk.length}');
+    debugPrint('[_handleAudioChunk] sessionReady=$_sessionReady state=$_state chunk=${chunk.length} micOn=$_micOn');
     if (!_sessionReady) return;
     if (_state != VoiceUiState.listening) return;
     if (chunk.isEmpty) return;
@@ -344,12 +349,17 @@ class _HomeState extends State<Home> {
   }
 
   void _sendAudioChunk(List<int> chunk) {
+    debugPrint('[_sendAudioChunk] sending ${chunk.length} bytes');
     final payload = jsonEncode({'type': 'audio_in', 'data': chunk});
     try {
       dc?.send(RTCDataChannelMessage(payload));
     } catch (e) {
       debugPrint('Failed to send audio chunk: $e');
     }
+  }
+
+  void _logDataChannelState(String prefix) {
+    debugPrint('[$prefix] DataChannel state=${dc?.state} bufferedAmount=${dc?.bufferedAmount}');
   }
 
   static String _makeSessionId() {
@@ -359,11 +369,17 @@ class _HomeState extends State<Home> {
 
   void _onMicTap() {
     // ChatGPT-like: when user starts, barge-in immediately
-    _sendCancel();
+    if (_sessionReady && _state != VoiceUiState.idle) {
+      _sendCancel();
+    } else {
+      debugPrint('[_onMicTap] no active turn to cancel (sessionReady=$_sessionReady state=$_state)');
+    }
+    debugPrint('[_onMicTap] trigger mic, state=$_state');
     setState(() {
       _micOn = true;
       _state = VoiceUiState.listening;
     });
+    _logDataChannelState('_onMicTap');
   }
 
   void _onInterrupt() {
@@ -477,11 +493,6 @@ class _HomeState extends State<Home> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _sessionReady ? null : _startSignaling,
-        label: Text(_sessionReady ? 'Signaling ready' : 'Start signaling'),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }

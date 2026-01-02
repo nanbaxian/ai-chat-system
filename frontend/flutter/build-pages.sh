@@ -30,4 +30,4 @@ flutter config --no-analytics
 flutter precache
 
 flutter pub get
-flutter build web  --dart-define=SIGNAL_ENDPOINT="https://aichatservice.flashcoding.ca/signal" --dart-define=SIGNAL_AUTHORIZATION="Bearer demo-token"
+flutter build web  --dart-define=SIGNAL_ENDPOINT="http://127.0.0.1:3001/signal" --dart-define=SIGNAL_AUTHORIZATION="Bearer demo-token"
