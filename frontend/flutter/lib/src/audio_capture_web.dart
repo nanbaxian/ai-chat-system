@@ -20,27 +20,35 @@ class AudioCapture {
   DateTime _windowStart = DateTime.now();
 
   void start(Object? stream) {
-    print('[AudioCapture] start called stream=$stream');
-    if (stream is html.MediaStream) {
-      _ensureContext();
-      _connectStream(stream);
+    print('[AudioCapture] start called stream=${stream.runtimeType}');
+    final resolvedStream = _resolveNativeStream(stream);
+    if (resolvedStream == null) {
+      print('[AudioCapture] start aborted: cannot resolve MediaStream');
+      return;
     }
+    _ensureContext();
+    _connectStream(resolvedStream);
+    _resumeContext();
   }
 
   void stop() {
     if (_processor != null) {
+      print('[AudioCapture] stopping processor');
       js_util.callMethod(_processor, 'disconnect', []);
       js_util.callMethod(_processor, 'removeEventListener', ['audioprocess', _onAudioProcess]);
     }
     if (_source != null) {
+      print('[AudioCapture] disconnecting source');
       js_util.callMethod(_source, 'disconnect', []);
       _source = null;
     }
     if (_silenceNode != null) {
+      print('[AudioCapture] disconnecting silence node');
       js_util.callMethod(_silenceNode, 'disconnect', []);
       _silenceNode = null;
     }
     if (_context != null) {
+      print('[AudioCapture] closing AudioContext');
       js_util.callMethod(_context, 'close', []);
       _context = null;
     }
@@ -59,9 +67,10 @@ class AudioCapture {
     final options = js_util.jsify({'sampleRate': targetSampleRate.toDouble()});
     _context = js_util.callConstructor(constructor, [options]);
     print('[AudioCapture] created AudioContext sampleRate=${targetSampleRate}');
+    _logContextState('after creation');
   }
 
-  void _connectStream(html.MediaStream stream) {
+  void _connectStream(dynamic stream) {
     if (_context == null) return;
 
     _processor = js_util.callMethod(_context, 'createScriptProcessor', [4096, 1, 1]);
@@ -69,6 +78,8 @@ class AudioCapture {
       'audioprocess',
       js_util.allowInterop((event) => _onAudioProcess(event)),
     ]);
+    _logContextState('after processor attach');
+    print('[AudioCapture] processor created + listener attached');
 
     _silenceNode = js_util.callMethod(_context, 'createGain', []);
     final gain = js_util.getProperty(_silenceNode, 'gain');
@@ -82,9 +93,50 @@ class AudioCapture {
     print('[AudioCapture] connected stream, processor bufferSize=4096');
   }
 
+  void _resumeContext() {
+    if (_context == null) return;
+    final resume = js_util.getProperty(_context, 'resume');
+    _logContextState('before resume');
+    if (resume != null) {
+      js_util.callMethod(_context, 'resume', []);
+      print('[AudioCapture] resumed AudioContext');
+    } else {
+      print('[AudioCapture] AudioContext.resume not available');
+    }
+    _logContextState('after resume');
+  }
+
+  /// External callers can trigger context resume under a user gesture.
+  void resume() => _resumeContext();
+
+  dynamic _resolveNativeStream(Object? stream) {
+    if (stream == null) return null;
+    if (stream is html.MediaStream) return stream;
+    final jsStream = js_util.getProperty(stream, 'jsStream');
+    if (jsStream != null) return jsStream;
+    final mediaStream = js_util.getProperty(stream, 'mediaStream');
+    if (mediaStream != null) return mediaStream;
+    final getTracks = js_util.getProperty(stream, 'getTracks');
+    if (getTracks != null) return stream;
+    return null;
+  }
+
+  void _logContextState(String stage) {
+    if (_context == null) {
+      print('[AudioCapture] context state $stage: null');
+      return;
+    }
+    final state = js_util.getProperty(_context, 'state') ?? 'unknown';
+    print('[AudioCapture] context state $stage: $state');
+  }
+
   void _onAudioProcess(dynamic event) {
+    print('[AudioCapture] audioprocess event triggered');
     final buffer = js_util.callMethod(js_util.getProperty(event, 'inputBuffer'), 'getChannelData', [0]) as Float32List?;
-    if (buffer == null) return;
+    if (buffer == null) {
+      print('[AudioCapture] inputBuffer returned null');
+      return;
+    }
 
     final chunk = _convertToInt16(buffer);
     if (chunk.isNotEmpty) {

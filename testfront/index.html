@@ -70,6 +70,63 @@
       const statusEl = document.getElementById("status");
       const transcriptEl = document.getElementById("transcript");
 
+      const llmEndpoint =
+        "https://api.deepinfra.com/v1/openai/chat/completions";
+      const llmHeaders = {
+        "Content-Type": "application/json",
+        Authorization: "Bearer 1d4bvMTnoarYe4yysyyCmdK92qdfhpjL",
+      };
+      const llmPayload = {
+        model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+        stream: false,
+        temperature: 0.4,
+        max_tokens: 50,
+      };
+
+      function speakText(text) {
+        if (!("speechSynthesis" in window)) {
+          return;
+        }
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "zh-CN";
+        window.speechSynthesis.speak(utterance);
+      }
+
+      async function requestLLM(userMessage) {
+        if (!userMessage.trim()) {
+          return;
+        }
+        statusEl.textContent = "正在请求AI回复…";
+        try {
+          const response = await fetch(llmEndpoint, {
+            method: "POST",
+            headers: llmHeaders,
+            body: JSON.stringify({
+              ...llmPayload,
+              messages: [{ role: "user", content: userMessage }],
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(`${response.status} ${response.statusText}`);
+          }
+          const data = await response.json();
+          const aiContent =
+            data?.choices?.[0]?.message?.content?.trim() ?? "";
+          if (aiContent) {
+            transcriptEl.textContent += `\n\nAI 回复：${aiContent}`;
+            speakText(aiContent);
+          } else {
+            statusEl.textContent = "AI未返回有效内容";
+          }
+        } catch (error) {
+          console.error("AI 请求失败", error);
+          statusEl.textContent = `AI 请求失败：${error.message}`;
+        } finally {
+          statusEl.textContent = "正在监听…";
+        }
+      }
+
       const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -107,6 +164,7 @@
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
               finalTranscript += transcript + "\n";
+              requestLLM(transcript);
             } else {
               interimTranscript += transcript;
             }

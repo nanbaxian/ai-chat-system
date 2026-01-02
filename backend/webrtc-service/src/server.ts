@@ -239,10 +239,12 @@ class Session {
     if (trimmed.length === 0) return;
     this.log('final transcript', trimmed);
     this.emit({ type: 'stt.final', text: trimmed });
+    this.log('sending placeholder text to TTS router');
     await this.ttsRouter?.sendText('Hmm.');
     this.llmAbort?.abort();
     this.llmAbort = new AbortController();
     try {
+      this.log('starting LLM stream');
       await this.llm?.stream(
         trimmed,
         async (delta) => {
@@ -252,6 +254,7 @@ class Session {
         },
         () => {
           this.emit({ type: 'llm.final' });
+          this.log('LLM stream completed');
         },
         this.llmAbort.signal
       );

@@ -123,7 +123,9 @@ class _HomeState extends State<Home> {
     dc = await pc!.createDataChannel('events', RTCDataChannelInit());
     dc!.onMessage = _onEvent;
 
+    debugPrint('[initRTC] requesting user media');
     final stream = await navigator.mediaDevices.getUserMedia({'audio': true});
+    debugPrint('[initRTC] user media granted tracks=${stream.getTracks().length}');
     debugPrint('[initRTC] got user media stream tracks=${stream.getTracks().length}');
     for (final t in stream.getTracks()) {
       pc!.addTrack(t, stream);
@@ -393,6 +395,7 @@ class _HomeState extends State<Home> {
     } else {
       debugPrint('[_onMicTap] no active turn to cancel (sessionReady=$_sessionReady state=$_state)');
     }
+    _audioCapture.resume();
     debugPrint('[_onMicTap] trigger mic, state=$_state');
     setState(() {
       _micOn = true;
