@@ -71,7 +71,7 @@ class _HomeState extends State<Home> {
   final String _sessionId = _makeSessionId();
   bool _sessionReady = false;
   late final dynamic _audioContext;
-  html.MediaStream? _localStream;
+  MediaStream? _localStream;
   bool _audioCaptureStarted = false;
 
   final List<ChatMessage> _messages = [];
