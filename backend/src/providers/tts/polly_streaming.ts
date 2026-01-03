@@ -27,7 +27,7 @@ export class PollyStreamingTTS implements StreamingTTS {
     throw new Error('PollyStreamingTTS not implemented in this demo stub');
   }
 
-  sendText(_text: string): void {
+  async sendText(_text: string): Promise<void> {
     // no-op
   }
 

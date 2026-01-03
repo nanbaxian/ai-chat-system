@@ -20,6 +20,8 @@ export class SmartTTSRouter {
 
   private metrics: TTSMetrics;
 
+  private preferenceOrder: string[];
+
   // hooks for UI/debug telemetry over DataChannel
   private onProviderSelected?: (name: string) => void;
   private onTTFA?: (name: string, ms: number) => void;
@@ -27,10 +29,16 @@ export class SmartTTSRouter {
   constructor(
     private state: DurableObjectState,
     private env: any,
-    private providers: TTSProviderEntry[]
+    private providers: TTSProviderEntry[],
+    preferredOrder?: string[]
   ) {
     for (const p of providers) this.costs[p.name] = { costScore: p.costScore };
     this.metrics = new TTSMetrics(state, env, this.costs);
+    this.preferenceOrder =
+      preferredOrder?.length && preferredOrder.every((name) => name.trim().length > 0)
+        ? preferredOrder.map((name) => name.trim())
+        : this.parsePreferredOrder(env) ??
+          ['elevenlabs', 'polly', 'deepgram'];
   }
 
   setHooks(h: { onProviderSelected?: (name: string) => void; onTTFA?: (name: string, ms: number) => void }) {
@@ -49,9 +57,7 @@ export class SmartTTSRouter {
   async start() {
     this.stats = await this.metrics.load();
 
-    const ranked = [...this.providers].sort((a, b) =>
-      this.metrics.score(this.stats, a.name) - this.metrics.score(this.stats, b.name)
-    );
+    const ranked = [...this.providers].sort((a, b) => this.scoreWithPreference(a) - this.scoreWithPreference(b));
 
     for (const p of ranked) {
       try {
@@ -76,8 +82,13 @@ export class SmartTTSRouter {
   }
 
   onAudio(cb: (buf: ArrayBuffer) => void) {
+    console.log(`onAudio:`+cb);
     this.audioCb = cb;
-    if (this.active) this.active.impl.onAudio(this.wrapAudioCb(this.active.name));
+    if (this.active) {
+      console.log(`active:`+this.active.name);
+      this.active.impl.onAudio(this.wrapAudioCb(this.active.name));
+      console.log(`real audio:`);
+    }
   }
 
   private wrapAudioCb(providerName: string) {
@@ -107,10 +118,10 @@ export class SmartTTSRouter {
       this.firstAudioSeen = false;
       this.lastTTFAMs = undefined;
     }
-    try {
-      console.log(`SmartTTSRouter: sending text to ${this.active.name}`);
-      await (this.active.impl as any).sendText(text);
-      console.log(`SmartTTSRouter: sendText succeeded for ${this.active.name}`);
+      try {
+        console.log(`SmartTTSRouter: sending text to ${this.active.name}`);
+        await this.active.impl.sendText(text);
+        console.log(`SmartTTSRouter: sendText succeeded for ${this.active.name}`);
     } catch {
       console.error(`SmartTTSRouter: sendText failed for ${this.active.name}`);
       // mark failure + switch to next best and retry once
@@ -121,7 +132,7 @@ export class SmartTTSRouter {
 
       const ranked = [...this.providers]
         .filter(p => p.name !== this.active!.name)
-        .sort((a, b) => this.metrics.score(this.stats, a.name) - this.metrics.score(this.stats, b.name));
+        .sort((a, b) => this.scoreWithPreference(a) - this.scoreWithPreference(b));
 
       for (const p of ranked) {
         try {
@@ -131,7 +142,7 @@ export class SmartTTSRouter {
           if (this.audioCb) p.impl.onAudio(this.wrapAudioCb(p.name));
           this.metrics.writeAE('tts.failover', { provider: p.name, ok: true, costScore: p.costScore });
           this.onProviderSelected?.(p.name);
-          await (this.active.impl as any).sendText(text);
+          await this.active.impl.sendText(text);
           console.log(`SmartTTSRouter: failover sendText succeeded for ${p.name}`);
           await this.metrics.save(this.stats);
           return;
@@ -141,13 +152,14 @@ export class SmartTTSRouter {
           this.metrics.writeAE('tts.failover_fail', { provider: p.name, ok: false, costScore: p.costScore });
         }
       }
-
+      console.log(`save metrics`);
       await this.metrics.save(this.stats);
       throw new Error('Failover exhausted');
     }
   }
 
   abort() {
+    console.log(`abort`);
     try { this.active?.impl.abort(); } catch {}
     this.sendStartedAt = undefined;
     this.firstAudioSeen = false;
@@ -155,6 +167,7 @@ export class SmartTTSRouter {
   }
 
   getDebugSnapshot() {
+    console.log(`getDebugSnapshot`);
     return {
       active: this.active?.name,
       lastTTFAMs: this.lastTTFAMs,
@@ -168,5 +181,27 @@ export class SmartTTSRouter {
         successes: this.stats[p.name]?.successes,
       })).sort((a,b)=>a.score-b.score)
     };
+  }
+
+  private scoreWithPreference(entry: TTSProviderEntry) {
+    console.log(`scoreWithPreference`);
+    return this.metrics.score(this.stats, entry.name) + this.preferenceBias(entry.name) * 3000;
+  }
+
+  private preferenceBias(name: string) {
+    console.log(`preferenceBias`);
+    const idx = this.preferenceOrder.indexOf(name);
+    return idx >= 0 ? idx : this.preferenceOrder.length;
+  }
+
+  private parsePreferredOrder(env: any): string[] | undefined {
+    console.log(`parsePreferredOrder`);
+    const raw = env.PREFERRED_TTS_ORDER ?? env.PREFERRED_TTS;
+    if (!raw || typeof raw !== 'string') return undefined;
+    const parsed = raw
+      .split(',')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+    return parsed.length ? parsed : undefined;
   }
 }

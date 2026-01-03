@@ -216,26 +216,29 @@ class Session {
         impl: new PollyStreamingTTS(this.env.AWS_REGION, this.env.AWS_ACCESS_KEY_ID, this.env.AWS_SECRET_ACCESS_KEY),
         costScore: parseCost(this.env.COST_POLLY, 0.6)
       },
-      {
-        name: 'elevenlabs',
-        impl: new ElevenLabsStreamingTTS(
-          this.env.ELEVENLABS_API_KEY,
-          this.env.ELEVENLABS_VOICE_ID ?? 'EXAVITQu4vr4xnSDxMaL',
-          this.env.ELEVENLABS_MODEL_ID ?? 'eleven_turbo_v2_5',
-          this.env.ELEVENLABS_OUTPUT_FORMAT ?? 'pcm_24000'
-        ),
-        costScore: parseCost(this.env.COST_ELEVENLABS, 1.3)
-      },
-      {
-        name: 'deepgram',
-        impl: new DeepgramStreamingTTS(
-          this.env.DEEPGRAM_API_KEY ?? '',
-          this.env.DEEPGRAM_MODEL ?? 'aura-asteria-en',
-          this.env.DEEPGRAM_ENCODING ?? 'linear16',
-          Number(this.env.DEEPGRAM_SAMPLE_RATE ?? 24000)
-        ),
-        costScore: parseCost(this.env.COST_DEEPGRAM, 0.9)
-      }
+        {
+          name: 'elevenlabs',
+          impl: new ElevenLabsStreamingTTS(
+            this.env.ELEVENLABS_API_KEY,
+            this.env.ELEVENLABS_VOICE_ID ?? 'EXAVITQu4vr4xnSDxMaL',
+            this.env.ELEVENLABS_MODEL_ID ?? 'eleven_turbo_v2_5',
+            this.env.ELEVENLABS_OUTPUT_FORMAT ?? 'pcm_24000',
+            (this.env.ELEVENLABS_USE_HTTP ?? '').toLowerCase() === 'true'
+          ),
+          costScore: parseCost(this.env.COST_ELEVENLABS, 0.35)
+        },
+        {
+          name: 'deepgram',
+          impl: new DeepgramStreamingTTS(
+            this.env.DEEPGRAM_API_KEY ?? '',
+            this.env.DEEPGRAM_MODEL ?? 'aura-asteria-en',
+            this.env.DEEPGRAM_ENCODING ?? 'linear16',
+            Number(this.env.DEEPGRAM_SAMPLE_RATE ?? 24000),
+            this.env.DEEPGRAM_VOICE ?? 'alloy',
+            (this.env.DEEPGRAM_USE_HTTP ?? '').toLowerCase() === 'true'
+          ),
+          costScore: parseCost(this.env.COST_DEEPGRAM, 2.0)
+        }
     ];
   }
 
