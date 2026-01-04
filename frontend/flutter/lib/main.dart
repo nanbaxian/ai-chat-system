@@ -245,39 +245,97 @@ class _HomeState extends State<Home> {
     if (base64Data.isEmpty) return;
     if (_audioContext == null) return;
     debugPrint('[_playTtsAudioChunk] chunkLen=${base64Data.length} sampleRate=$sampleRate');
+    final decoded = base64Decode(base64Data);
+    debugPrint('[_playTtsAudioChunk] decodedBytes=${decoded.length}');
+    _resumeAudioContext();
+
+    var played = false;
+
+    void fallback(_) {
+      if (played) return;
+      played = true;
+      _playPcmChunk(decoded, sampleRate);
+    }
+
+    void handleBuffer(Object audioBuffer) {
+      if (played) return;
+      played = true;
+      _scheduleAudioBuffer(audioBuffer);
+    }
+
+    final arrayBuffer = _sliceArrayBuffer(decoded);
+    if (arrayBuffer == null) {
+      fallback(null);
+      return;
+    }
+
     try {
-      try {
-        js_util.callMethod(_audioContext, 'resume', []);
-      } catch (_) {}
-      final decoded = base64Decode(base64Data);
-      debugPrint('[_playTtsAudioChunk] decodedBytes=${decoded.length}');
-      final frameCount = decoded.length ~/ 2;
-      final constructor = js_util.getProperty(_audioContext, 'createBuffer');
-      if (constructor == null) return;
-      final audioBuffer = js_util.callMethod(
+      final promise = js_util.callMethod(
         _audioContext,
-        'createBuffer',
-        [1, frameCount, sampleRate.toDouble()],
+        'decodeAudioData',
+        [arrayBuffer, js_util.allowInterop(handleBuffer), js_util.allowInterop(fallback)],
       );
-      final channelData = js_util.callMethod(audioBuffer, 'getChannelData', [0]) as Float32List;
-      final bytes = ByteData.sublistView(decoded);
-      for (var i = 0; i < frameCount; i++) {
-        channelData[i] = (bytes.getInt16(i * 2, Endian.little) / 0x7fff).clamp(-1.0, 1.0);
+      if (promise != null) {
+        js_util.promiseToFuture(promise).then((audioBuffer) {
+          handleBuffer(audioBuffer as Object);
+        }).catchError(fallback);
       }
-      final source = js_util.callMethod(_audioContext, 'createBufferSource', []);
-      js_util.setProperty(source, 'buffer', audioBuffer);
-      js_util.callMethod(source, 'connect', [js_util.getProperty(_audioContext, 'destination')]);
-      js_util.callMethod(source, 'start', [0]);
-      js_util.callMethod(source, 'addEventListener', [
-        'ended',
-        js_util.allowInterop((_) {
-          try {
-            js_util.callMethod(source, 'disconnect', []);
-          } catch (_) {}
-        })
-      ]);
-    } catch (error, stack) {
-      debugPrint('[_playTtsAudioChunk] $error\n$stack');
+    } catch (_) {
+      fallback(null);
+    }
+  }
+
+  void _resumeAudioContext() {
+    if (_audioContext == null) return;
+    try {
+      js_util.callMethod(_audioContext, 'resume', []);
+    } catch (_) {}
+  }
+
+  void _scheduleAudioBuffer(Object audioBuffer) {
+    if (_audioContext == null) return;
+    final source = js_util.callMethod(_audioContext, 'createBufferSource', []);
+    js_util.setProperty(source, 'buffer', audioBuffer);
+    js_util.callMethod(source, 'connect', [js_util.getProperty(_audioContext, 'destination')]);
+    js_util.callMethod(source, 'start', [0]);
+    js_util.callMethod(source, 'addEventListener', [
+      'ended',
+      js_util.allowInterop((_) {
+        try {
+          js_util.callMethod(source, 'disconnect', []);
+        } catch (_) {}
+      })
+    ]);
+  }
+
+  void _playPcmChunk(Uint8List decoded, num sampleRate) {
+    if (_audioContext == null) return;
+    final frameCount = decoded.length ~/ 2;
+    if (frameCount <= 0) return;
+    final audioBuffer = js_util.callMethod(
+      _audioContext,
+      'createBuffer',
+      [1, frameCount, sampleRate.toDouble()],
+    );
+    final channelData = js_util.callMethod(audioBuffer, 'getChannelData', [0]) as Float32List;
+    final bytes = ByteData.sublistView(decoded);
+    for (var i = 0; i < frameCount; i++) {
+      channelData[i] = (bytes.getInt16(i * 2, Endian.little) / 0x7fff).clamp(-1.0, 1.0);
+    }
+    _scheduleAudioBuffer(audioBuffer);
+  }
+
+  Object? _sliceArrayBuffer(Uint8List bytes) {
+    final buffer = js_util.getProperty(bytes, 'buffer');
+    final byteOffset = js_util.getProperty(bytes, 'byteOffset');
+    final length = js_util.getProperty(bytes, 'length');
+    if (buffer == null) return buffer;
+    try {
+      final offset = byteOffset is num ? byteOffset.toInt() : 0;
+      final sliceLength = length is num ? length.toInt() : bytes.length;
+      return js_util.callMethod(buffer, 'slice', [offset, offset + sliceLength]);
+    } catch (_) {
+      return buffer;
     }
   }
 
