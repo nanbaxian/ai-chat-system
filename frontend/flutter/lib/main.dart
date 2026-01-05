@@ -207,8 +207,8 @@ class _HomeState extends State<Home> {
 
   void _logStreamTracks(String prefix, dynamic stream) {
     final nativeStream = _resolveNativeStreamForLogging(stream);
-    final streamId = js_util.getProperty(stream, 'id') ?? js_util.getProperty(nativeStream, 'id');
-    final active = js_util.getProperty(stream, 'active') ?? js_util.getProperty(nativeStream, 'active');
+    final streamId = js_util.getProperty(stream, 'id') ?? (nativeStream != null ? js_util.getProperty(nativeStream, 'id') : null);
+    final active = js_util.getProperty(stream, 'active') ?? (nativeStream != null ? js_util.getProperty(nativeStream, 'active') : null);
     if (nativeStream == null) {
       debugPrint('[$prefix] stream id=${streamId ?? 'unknown'} native stream missing trackCount=0 active=${active ?? 'unknown'}');
       return;
