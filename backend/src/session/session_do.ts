@@ -125,9 +125,6 @@ export class SessionDO {
       if (active) this.emit({ type: 'tts.provider', name: active } as any);
 
       this.stt.onFinalText(async (text) => {
-        // Latency masking
-        await this.ttsRouter!.sendText('Hmm.');
-
         this.llmAbort = new AbortController();
 
         await this.llm!.stream(

@@ -293,13 +293,6 @@ class Session {
     this.lastFinalTranscript = trimmed;
     this.log('final transcript', trimmed);
     this.emit({ type: 'stt.final', text: trimmed });
-    this.log('notifying TTS router that transcript arrived');
-    try {
-      await this.ttsRouter?.sendText('Hmm.');
-      this.log('tts router initial prompt acknowledged');
-    } catch (error) {
-      this.error('tts router initial prompt failed', error);
-    }
     this.llmAbort?.abort();
     this.llmAbort = new AbortController();
     try {
