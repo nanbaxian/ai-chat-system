@@ -152,18 +152,26 @@ class _HomeState extends State<Home> {
     debugPrint('[initRTC] requesting user media');
     final stream = await navigator.mediaDevices.getUserMedia({'audio': true});
     debugPrint('[initRTC] user media granted tracks=${stream.getTracks().length}');
-    debugPrint('[initRTC] got user media stream tracks=${stream.getTracks().length}');
+    debugPrint('[initRTC] got user media stream tracks=${stream.getTracks().length} active=${stream.active} id=${stream.id}');
     for (final t in stream.getTracks()) {
       pc!.addTrack(t, stream);
     }
 
     _localStream = stream;
+    debugPrint('[initRTC] local stream stored active=${stream.active} id=${stream.id}');
   }
 
   void _ensureAudioCapture() {
-    if (_audioCaptureStarted) return;
+    if (_audioCaptureStarted) {
+      debugPrint('[_ensureAudioCapture] capture already started (streamId=${_localStream?.id ?? 'null'})');
+      return;
+    }
     final stream = _localStream;
-    if (stream == null) return;
+    if (stream == null) {
+      debugPrint('[_ensureAudioCapture] local stream not ready yet, cannot start capture');
+      return;
+    }
+    debugPrint('[_ensureAudioCapture] starting capture streamId=${stream.id} active=${stream.active}');
     _audioCapture.start(stream);
     _audioCaptureStarted = true;
     debugPrint('[audio] capture started');
@@ -551,6 +559,7 @@ class _HomeState extends State<Home> {
     } else {
       debugPrint('[_onMicTap] no active turn to cancel (sessionReady=$_sessionReady state=$_state)');
     }
+    debugPrint('[_onMicTap] local stream present=${_localStream != null} active=${_localStream?.active ?? false}');
     _ensureAudioCapture();
     _audioCapture.resume();
     debugPrint('[_onMicTap] trigger mic, state=$_state');
