@@ -206,10 +206,14 @@ class _HomeState extends State<Home> {
   }
 
   void _logStreamTracks(String prefix, dynamic stream) {
-    final tracks =
-        List<dynamic>.from(js_util.callMethod(stream, 'getAudioTracks', []));
-    final streamId = js_util.getProperty(stream, 'id');
-    final active = js_util.getProperty(stream, 'active');
+    final nativeStream = _resolveNativeStreamForLogging(stream);
+    final streamId = js_util.getProperty(stream, 'id') ?? js_util.getProperty(nativeStream, 'id');
+    final active = js_util.getProperty(stream, 'active') ?? js_util.getProperty(nativeStream, 'active');
+    if (nativeStream == null) {
+      debugPrint('[$prefix] stream id=${streamId ?? 'unknown'} native stream missing trackCount=0 active=${active ?? 'unknown'}');
+      return;
+    }
+    final tracks = List<dynamic>.from(js_util.callMethod(nativeStream, 'getAudioTracks', []));
     debugPrint('[$prefix] stream id=${streamId ?? 'unknown'} trackCount=${tracks.length} active=${active ?? 'unknown'}');
     for (final track in tracks) {
       final trackId = js_util.getProperty(track, 'id');
@@ -227,6 +231,18 @@ class _HomeState extends State<Home> {
         })
       ]);
     }
+  }
+
+  dynamic _resolveNativeStreamForLogging(dynamic stream) {
+    if (stream == null) return null;
+    if (stream is html.MediaStream) return stream;
+    final jsStream = js_util.getProperty(stream, 'jsStream');
+    if (jsStream != null) return jsStream;
+    final mediaStream = js_util.getProperty(stream, 'mediaStream');
+    if (mediaStream != null) return mediaStream;
+    final getTracks = js_util.getProperty(stream, 'getTracks');
+    if (getTracks != null) return stream;
+    return null;
   }
 
   ChatMessage? _lastAssistant() {
