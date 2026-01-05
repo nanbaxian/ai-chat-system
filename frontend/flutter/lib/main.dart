@@ -73,7 +73,8 @@ class _HomeState extends State<Home> {
   late final dynamic _audioContext;
   MediaStream? _localStream;
   bool _audioCaptureStarted = false;
-  Object? _currentAudioSource;
+  final List<Object> _activeAudioSources = [];
+  num? _nextAudioStartTime;
 
   final List<ChatMessage> _messages = [];
   final ScrollController _scroll = ScrollController();
@@ -294,32 +295,38 @@ class _HomeState extends State<Home> {
   }
 
   void _stopCurrentAudio() {
-    final previous = _currentAudioSource;
-    if (previous == null) return;
-    _currentAudioSource = null;
-    try {
-      js_util.callMethod(previous, 'stop', []);
-    } catch (_) {}
-    try {
-      js_util.callMethod(previous, 'disconnect', []);
-    } catch (_) {}
+    if (_activeAudioSources.isEmpty) return;
+    for (final source in List.of(_activeAudioSources)) {
+      _activeAudioSources.remove(source);
+      try {
+        js_util.callMethod(source, 'stop', []);
+      } catch (_) {}
+      try {
+        js_util.callMethod(source, 'disconnect', []);
+      } catch (_) {}
+    }
+    _nextAudioStartTime = null;
   }
 
   void _scheduleAudioBuffer(Object audioBuffer) {
     if (_audioContext == null) return;
-    _stopCurrentAudio();
     final source = js_util.callMethod(_audioContext, 'createBufferSource', []);
-    _currentAudioSource = source;
     js_util.setProperty(source, 'buffer', audioBuffer);
     js_util.callMethod(source, 'connect', [js_util.getProperty(_audioContext, 'destination')]);
-    js_util.callMethod(source, 'start', [0]);
+    final rawCurrentTime = js_util.getProperty(_audioContext, 'currentTime');
+    final currentTime = rawCurrentTime is num ? rawCurrentTime : 0;
+    final startTime = (_nextAudioStartTime != null && _nextAudioStartTime! > currentTime ? _nextAudioStartTime! : currentTime);
+    js_util.callMethod(source, 'start', [startTime]);
+    final duration = js_util.getProperty(audioBuffer, 'duration');
+    _nextAudioStartTime = duration is num ? startTime + duration : startTime;
+    _activeAudioSources.add(source);
     js_util.callMethod(source, 'addEventListener', [
       'ended',
       js_util.allowInterop((_) {
         try {
           js_util.callMethod(source, 'disconnect', []);
         } catch (_) {}
-        if (_currentAudioSource == source) _currentAudioSource = null;
+        _activeAudioSources.remove(source);
       })
     ]);
   }
