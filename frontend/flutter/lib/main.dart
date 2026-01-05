@@ -72,6 +72,7 @@ class _HomeState extends State<Home> {
   bool _sessionReady = false;
   late final dynamic _audioContext;
   dynamic _localStream;
+  dynamic _localNativeStream;
   bool _audioCaptureStarted = false;
   final List<Object> _activeAudioSources = [];
   num? _nextAudioStartTime;
@@ -167,6 +168,7 @@ class _HomeState extends State<Home> {
       }
 
       _localStream = stream;
+      _localNativeStream = _resolveNativeStream(stream);
       debugPrint('[initRTC] local stream stored active=${stream.active} id=${stream.id}');
     } catch (error, st) {
       debugPrint('[initRTC] getUserMedia failed: $error');
@@ -185,11 +187,16 @@ class _HomeState extends State<Home> {
       debugPrint('[_ensureAudioCapture] local stream not ready yet, cannot start capture');
       return;
     }
+    _localNativeStream = _extractNativeStream(stream);
+    if (_localNativeStream == null) {
+      debugPrint('[_ensureAudioCapture] native stream missing, waiting for native tracks');
+      return;
+    }
     _logStreamTracks('ensureAudioCapture', stream);
-    final streamId = js_util.getProperty(stream, 'id');
-    final active = js_util.getProperty(stream, 'active');
+    final streamId = js_util.getProperty(stream, 'id') ?? js_util.getProperty(_localNativeStream, 'id');
+    final active = js_util.getProperty(stream, 'active') ?? js_util.getProperty(_localNativeStream, 'active');
     debugPrint('[_ensureAudioCapture] starting capture streamId=${streamId ?? 'unknown'} active=${active ?? 'unknown'}');
-    _audioCapture.start(stream);
+    _audioCapture.start(_localNativeStream);
     _audioCaptureStarted = true;
     debugPrint('[audio] capture started');
   }
@@ -206,7 +213,7 @@ class _HomeState extends State<Home> {
   }
 
   void _logStreamTracks(String prefix, dynamic stream) {
-    final nativeStream = _resolveNativeStreamForLogging(stream);
+    final nativeStream = _resolveNativeStream(stream);
     final streamId = js_util.getProperty(stream, 'id') ?? (nativeStream != null ? js_util.getProperty(nativeStream, 'id') : null);
     final active = js_util.getProperty(stream, 'active') ?? (nativeStream != null ? js_util.getProperty(nativeStream, 'active') : null);
     if (nativeStream == null) {
@@ -238,7 +245,7 @@ class _HomeState extends State<Home> {
     }
   }
 
-  dynamic _resolveNativeStreamForLogging(dynamic stream) {
+  dynamic _resolveNativeStream(dynamic stream) {
     if (stream == null) return null;
     if (stream is html.MediaStream) return stream;
     final jsStream = js_util.getProperty(stream, 'jsStream');
