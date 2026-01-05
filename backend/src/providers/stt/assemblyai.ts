@@ -58,7 +58,9 @@ export class AssemblyAIStreamingSTT {
         const formatted = turn_is_formatted ? 'formatted' : 'raw';
         console.log('[STT] turn', formatted, 'transcript=', transcript, 'confidence=', end_of_turn_confidence, 'end_of_turn=', end_of_turn);
         if (transcript) this.onPartial?.(transcript);
-        if (end_of_turn) this.onFinal?.(transcript);
+        if (end_of_turn && turn_is_formatted) {
+          this.onFinal?.(transcript);
+        }
         return;
       }
       if (type === 'Termination') {

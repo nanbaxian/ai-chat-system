@@ -73,6 +73,7 @@ class _HomeState extends State<Home> {
   late final dynamic _audioContext;
   MediaStream? _localStream;
   bool _audioCaptureStarted = false;
+  Object? _currentAudioSource;
 
   final List<ChatMessage> _messages = [];
   final ScrollController _scroll = ScrollController();
@@ -292,9 +293,23 @@ class _HomeState extends State<Home> {
     } catch (_) {}
   }
 
+  void _stopCurrentAudio() {
+    final previous = _currentAudioSource;
+    if (previous == null) return;
+    _currentAudioSource = null;
+    try {
+      js_util.callMethod(previous, 'stop', []);
+    } catch (_) {}
+    try {
+      js_util.callMethod(previous, 'disconnect', []);
+    } catch (_) {}
+  }
+
   void _scheduleAudioBuffer(Object audioBuffer) {
     if (_audioContext == null) return;
+    _stopCurrentAudio();
     final source = js_util.callMethod(_audioContext, 'createBufferSource', []);
+    _currentAudioSource = source;
     js_util.setProperty(source, 'buffer', audioBuffer);
     js_util.callMethod(source, 'connect', [js_util.getProperty(_audioContext, 'destination')]);
     js_util.callMethod(source, 'start', [0]);
@@ -304,6 +319,7 @@ class _HomeState extends State<Home> {
         try {
           js_util.callMethod(source, 'disconnect', []);
         } catch (_) {}
+        if (_currentAudioSource == source) _currentAudioSource = null;
       })
     ]);
   }
