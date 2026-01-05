@@ -1,5 +1,5 @@
 local build:
-flutter build web  --dart-define=SIGNAL_ENDPOINT=http://127.0.0.1:3001/signal --dart-define=SIGNAL_AUTHORIZATION="Bearer demo-token"
+flutter build web  --dart-define=SIGNAL_ENDPOINT=https://aichatback.standirect.ca/signal --dart-define=SIGNAL_AUTHORIZATION="Bearer demo-token"
 
 
 cloudflare build:
@@ -7,6 +7,6 @@ curl -sSL https://storage.googleapis.com/flutter_infra_release/releases/stable/l
 export PATH="$PWD/flutter/bin:$PATH"
 flutter config --no-analytics
 flutter pub get
-flutter build web  --dart-define=SIGNAL_ENDPOINT=http://127.0.0.1:3001/signal --dart-define=SIGNAL_AUTHORIZATION="Bearer demo-token"
+flutter build web  --dart-define=SIGNAL_ENDPOINT=https://aichatback.standirect.ca/signal --dart-define=SIGNAL_AUTHORIZATION="Bearer demo-token"
 
 输出目录指定为 frontend/flutter/build/web

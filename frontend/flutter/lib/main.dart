@@ -15,7 +15,7 @@ import 'src/audio_capture.dart';
 
 const _signalEndpoint = String.fromEnvironment(
   'SIGNAL_ENDPOINT',
-  defaultValue: 'http://127.0.0.1:3001/signal',
+  defaultValue: 'https://aichatback.standirect.ca/signal',
 );
 const _authorizationHeader = String.fromEnvironment(
   'SIGNAL_AUTHORIZATION',
