@@ -200,13 +200,26 @@ class _HomeState extends State<Home> {
   }
 
   void _logStreamTracks(String prefix, html.MediaStream stream) {
-    final tracks = stream.getAudioTracks();
-    debugPrint('[$prefix] stream id=${stream.id} trackCount=${tracks.length} active=${stream.active}');
+    final tracks =
+        List<dynamic>.from(js_util.callMethod(stream, 'getAudioTracks', []));
+    final streamId = js_util.getProperty(stream, 'id');
+    final active = js_util.getProperty(stream, 'active');
+    debugPrint('[$prefix] stream id=${streamId ?? 'unknown'} trackCount=${tracks.length} active=${active ?? 'unknown'}');
     for (final track in tracks) {
-      debugPrint('[$prefix] track id=${track.id} kind=${track.kind} enabled=${track.enabled} muted=${track.muted} readyState=${track.readyState}');
-      track.onEnded.listen((event) {
-        debugPrint('[$prefix] track ended id=${track.id} readyState=${track.readyState}');
-      });
+      final trackId = js_util.getProperty(track, 'id');
+      final kind = js_util.getProperty(track, 'kind');
+      final enabled = js_util.getProperty(track, 'enabled');
+      final muted = js_util.getProperty(track, 'muted');
+      final readyState = js_util.getProperty(track, 'readyState');
+      debugPrint(
+        '[$prefix] track id=${trackId ?? 'unknown'} kind=${kind ?? 'unknown'} enabled=${enabled ?? 'unknown'} muted=${muted ?? 'unknown'} readyState=${readyState ?? 'unknown'}',
+      );
+      js_util.callMethod(track, 'addEventListener', [
+        'ended',
+        js_util.allowInterop((event) {
+          debugPrint('[$prefix] track ended id=${trackId ?? 'unknown'} readyState=${readyState ?? 'unknown'}');
+        })
+      ]);
     }
   }
 
