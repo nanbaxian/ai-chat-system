@@ -139,8 +139,7 @@ class Session {
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pc.removeEventListener('icegatheringstatechange', listener);
-        console.warn(`[session:${this.id}] ICE gathering timeout, continuing with partial candidates`);
-        resolve();
+        reject(new Error('ICE gathering timeout'));
       }, 8000);
       const listener = () => {
         if (this.pc.iceGatheringState === 'complete') {
