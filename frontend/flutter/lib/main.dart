@@ -149,16 +149,26 @@ class _HomeState extends State<Home> {
     dc = await pc!.createDataChannel('events', RTCDataChannelInit());
     dc!.onMessage = _onEvent;
 
-    debugPrint('[initRTC] requesting user media');
-    final stream = await navigator.mediaDevices.getUserMedia({'audio': true});
-    debugPrint('[initRTC] user media granted tracks=${stream.getTracks().length}');
-    debugPrint('[initRTC] got user media stream tracks=${stream.getTracks().length} active=${stream.active} id=${stream.id}');
-    for (final t in stream.getTracks()) {
-      pc!.addTrack(t, stream);
-    }
+    try {
+      debugPrint('[initRTC] requesting user media');
+      final stream = await navigator.mediaDevices.getUserMedia({'audio': true});
+      debugPrint('[initRTC] user media granted tracks=${stream.getTracks().length}');
+      debugPrint('[initRTC] got user media stream tracks=${stream.getTracks().length} active=${stream.active} id=${stream.id}');
+      _logStreamTracks('initRTC', stream);
+      for (final track in stream.getTracks()) {
+        track.onEnded.listen((evt) {
+          debugPrint('[_track] initRTC track ended id=${track.id} kind=${track.kind}');
+        });
+        pc!.addTrack(track, stream);
+      }
 
-    _localStream = stream;
-    debugPrint('[initRTC] local stream stored active=${stream.active} id=${stream.id}');
+      _localStream = stream;
+      debugPrint('[initRTC] local stream stored active=${stream.active} id=${stream.id}');
+    } catch (error, st) {
+      debugPrint('[initRTC] getUserMedia failed: $error');
+      debugPrint(st.toString());
+      rethrow;
+    }
   }
 
   void _ensureAudioCapture() {
@@ -171,6 +181,7 @@ class _HomeState extends State<Home> {
       debugPrint('[_ensureAudioCapture] local stream not ready yet, cannot start capture');
       return;
     }
+    _logStreamTracks('ensureAudioCapture', stream);
     debugPrint('[_ensureAudioCapture] starting capture streamId=${stream.id} active=${stream.active}');
     _audioCapture.start(stream);
     _audioCaptureStarted = true;
@@ -186,6 +197,17 @@ class _HomeState extends State<Home> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  void _logStreamTracks(String prefix, html.MediaStream stream) {
+    final tracks = stream.getAudioTracks();
+    debugPrint('[$prefix] stream id=${stream.id} trackCount=${tracks.length} active=${stream.active}');
+    for (final track in tracks) {
+      debugPrint('[$prefix] track id=${track.id} kind=${track.kind} enabled=${track.enabled} muted=${track.muted} readyState=${track.readyState}');
+      track.onEnded.listen((event) {
+        debugPrint('[$prefix] track ended id=${track.id} readyState=${track.readyState}');
+      });
+    }
   }
 
   ChatMessage? _lastAssistant() {
@@ -560,6 +582,9 @@ class _HomeState extends State<Home> {
       debugPrint('[_onMicTap] no active turn to cancel (sessionReady=$_sessionReady state=$_state)');
     }
     debugPrint('[_onMicTap] local stream present=${_localStream != null} active=${_localStream?.active ?? false}');
+    if (_localStream != null) {
+      _logStreamTracks('_onMicTap', _localStream!);
+    }
     _ensureAudioCapture();
     _audioCapture.resume();
     debugPrint('[_onMicTap] trigger mic, state=$_state');

@@ -26,6 +26,7 @@ class AudioCapture {
       print('[AudioCapture] start aborted: cannot resolve MediaStream');
       return;
     }
+    print('[AudioCapture] resolved stream id=${js_util.getProperty(resolvedStream, 'id')} active=${js_util.getProperty(resolvedStream, 'active')}');
     _ensureContext();
     _connectStream(resolvedStream);
     _resumeContext();
