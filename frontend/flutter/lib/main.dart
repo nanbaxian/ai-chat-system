@@ -76,6 +76,7 @@ class _HomeState extends State<Home> {
   bool _audioCaptureStarted = false;
   final List<Object> _activeAudioSources = [];
   num? _nextAudioStartTime;
+  Timer? _nativeStreamRetryTimer;
 
   final List<ChatMessage> _messages = [];
   final ScrollController _scroll = ScrollController();
@@ -195,7 +196,8 @@ class _HomeState extends State<Home> {
     }
     _localNativeStream = _resolveNativeStream(stream);
     if (_localNativeStream == null) {
-      debugPrint('[_ensureAudioCapture] native stream missing, waiting for native tracks');
+      debugPrint('[_ensureAudioCapture] native stream missing, scheduling retry');
+      _scheduleNativeStreamRetry();
       return;
     }
     _logStreamTracks('ensureAudioCapture', stream);
@@ -205,6 +207,17 @@ class _HomeState extends State<Home> {
     _audioCapture.start(_localNativeStream);
     _audioCaptureStarted = true;
     debugPrint('[audio] capture started');
+  }
+
+  void _scheduleNativeStreamRetry() {
+    if (_nativeStreamRetryTimer != null) return;
+    _nativeStreamRetryTimer = Timer(const Duration(milliseconds: 250), () {
+      _nativeStreamRetryTimer = null;
+      if (!_audioCaptureStarted) {
+        debugPrint('[_scheduleNativeStreamRetry] re-running _ensureAudioCapture');
+        _ensureAudioCapture();
+      }
+    });
   }
 
   void _scrollToBottom() {
