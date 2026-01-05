@@ -77,6 +77,8 @@ class _HomeState extends State<Home> {
   final List<Object> _activeAudioSources = [];
   num? _nextAudioStartTime;
   Timer? _nativeStreamRetryTimer;
+  int _nativeStreamRetryAttempts = 0;
+  static const int _maxNativeStreamRetryAttempts = 16;
 
   final List<ChatMessage> _messages = [];
   final ScrollController _scroll = ScrollController();
@@ -156,6 +158,7 @@ class _HomeState extends State<Home> {
       final stream = await navigator.mediaDevices.getUserMedia({'audio': true});
       debugPrint('[initRTC] user media granted tracks=${stream.getTracks().length}');
       debugPrint('[initRTC] got user media stream tracks=${stream.getTracks().length} active=${stream.active} id=${stream.id}');
+      await Future.delayed(const Duration(milliseconds: 400));
       _logStreamTracks('initRTC', stream);
       for (final track in stream.getTracks()) {
       final addEventListener = js_util.getProperty(track, 'addEventListener');
@@ -196,7 +199,7 @@ class _HomeState extends State<Home> {
     }
     _localNativeStream = _resolveNativeStream(stream);
     if (_localNativeStream == null) {
-      debugPrint('[_ensureAudioCapture] native stream missing, scheduling retry');
+      debugPrint('[_ensureAudioCapture] native stream missing, scheduling retry (#${_nativeStreamRetryAttempts})');
       _scheduleNativeStreamRetry();
       return;
     }
@@ -207,11 +210,18 @@ class _HomeState extends State<Home> {
     _audioCapture.start(_localNativeStream);
     _audioCaptureStarted = true;
     debugPrint('[audio] capture started');
+    _nativeStreamRetryAttempts = 0;
   }
 
   void _scheduleNativeStreamRetry() {
     if (_nativeStreamRetryTimer != null) return;
-    _nativeStreamRetryTimer = Timer(const Duration(milliseconds: 250), () {
+    if (_nativeStreamRetryAttempts >= _maxNativeStreamRetryAttempts) {
+      debugPrint('[_scheduleNativeStreamRetry] reached max retries (${_maxNativeStreamRetryAttempts}), will stop retrying');
+      return;
+    }
+    final delayMs = 400 + (_nativeStreamRetryAttempts * 100);
+    _nativeStreamRetryAttempts++;
+    _nativeStreamRetryTimer = Timer(Duration(milliseconds: delayMs), () {
       _nativeStreamRetryTimer = null;
       if (!_audioCaptureStarted) {
         debugPrint('[_scheduleNativeStreamRetry] re-running _ensureAudioCapture');
