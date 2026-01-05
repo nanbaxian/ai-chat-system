@@ -46,11 +46,13 @@ Icon?
 **/.flutter-plugins-dependencies
 **/.metadata
 **/.packages
+**/build/
 **/MERGED_MANIFEST.txt
 
 ## Flutter frontend
 /frontend/flutter/.dart_tool/
 /frontend/flutter/.packages
+/frontend/flutter/build/
 /frontend/flutter/.flutter-plugins
 /frontend/flutter/.flutter-plugins-dependencies
 /frontend/flutter/.metadata
@@ -64,6 +66,7 @@ Icon?
 /frontend/flutter/ios/Flutter/.last_build_id
 /frontend/flutter/.swiftpm/
 /frontend/flutter/migrate_working_dir/
+/frontend/flutter/.build/
 /frontend/flutter/.buildlog/
 /frontend/flutter/.history/
 /frontend/flutter/.svn/
