@@ -267,6 +267,10 @@ class _HomeState extends State<Home> {
   dynamic _resolveNativeStream(dynamic stream) {
     if (stream == null) return null;
     if (stream is html.MediaStream) return stream;
+    if (stream is MediaStream) {
+      final inner = js_util.getProperty(stream, 'jsStream') ?? js_util.getProperty(stream, 'mediaStream');
+      if (inner != null) return inner;
+    }
     final jsStream = js_util.getProperty(stream, 'jsStream');
     if (jsStream != null) return jsStream;
     final mediaStream = js_util.getProperty(stream, 'mediaStream');
