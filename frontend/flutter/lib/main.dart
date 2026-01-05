@@ -224,12 +224,17 @@ class _HomeState extends State<Home> {
       debugPrint(
         '[$prefix] track id=${trackId ?? 'unknown'} kind=${kind ?? 'unknown'} enabled=${enabled ?? 'unknown'} muted=${muted ?? 'unknown'} readyState=${readyState ?? 'unknown'}',
       );
-      js_util.callMethod(track, 'addEventListener', [
-        'ended',
-        js_util.allowInterop((event) {
-          debugPrint('[$prefix] track ended id=${trackId ?? 'unknown'} readyState=${readyState ?? 'unknown'}');
-        })
-      ]);
+      final addEventListener = js_util.getProperty(track, 'addEventListener');
+      if (addEventListener != null) {
+        js_util.callMethod(track, 'addEventListener', [
+          'ended',
+          js_util.allowInterop((event) {
+            debugPrint('[$prefix] track ended id=${trackId ?? 'unknown'} readyState=${readyState ?? 'unknown'}');
+          })
+        ]);
+      } else {
+        debugPrint('[$prefix] track has no addEventListener, skipping');
+      }
     }
   }
 
