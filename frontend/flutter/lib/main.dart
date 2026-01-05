@@ -179,6 +179,11 @@ class _HomeState extends State<Home> {
 
     _localStream = stream;
     _localNativeStream = _resolveNativeStream(stream);
+    final injected = _popInjectedStream();
+    if (injected != null) {
+      _localNativeStream = injected;
+      debugPrint('[_ensureAudioCapture] using injected native stream');
+    }
       debugPrint('[initRTC] local stream stored active=${stream.active} id=${stream.id}');
     } catch (error, st) {
       debugPrint('[initRTC] getUserMedia failed: $error');
@@ -288,6 +293,14 @@ class _HomeState extends State<Home> {
     final getTracks = js_util.getProperty(stream, 'getTracks');
     if (getTracks != null) return stream;
     return null;
+  }
+
+  dynamic _popInjectedStream() {
+    final injected = js_util.getProperty(html.window, 'flutterNativeStream');
+    if (injected != null) {
+      js_util.setProperty(html.window, 'flutterNativeStream', null);
+    }
+    return injected;
   }
 
   ChatMessage? _lastAssistant() {
