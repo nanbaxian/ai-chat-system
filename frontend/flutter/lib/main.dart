@@ -71,7 +71,7 @@ class _HomeState extends State<Home> {
   final String _sessionId = _makeSessionId();
   bool _sessionReady = false;
   late final dynamic _audioContext;
-  MediaStream? _localStream;
+  dynamic _localStream;
   bool _audioCaptureStarted = false;
   final List<Object> _activeAudioSources = [];
   num? _nextAudioStartTime;
@@ -156,9 +156,13 @@ class _HomeState extends State<Home> {
       debugPrint('[initRTC] got user media stream tracks=${stream.getTracks().length} active=${stream.active} id=${stream.id}');
       _logStreamTracks('initRTC', stream);
       for (final track in stream.getTracks()) {
-        track.onEnded.listen((evt) {
-          debugPrint('[_track] initRTC track ended id=${track.id} kind=${track.kind}');
-        });
+        js_util.callMethod(track, 'addEventListener', [
+          'ended',
+          js_util.allowInterop((event) {
+            final trackId = js_util.getProperty(track, 'id') ?? 'unknown';
+            debugPrint('[_track] initRTC track ended id=$trackId kind=${js_util.getProperty(track, 'kind') ?? 'unknown'}');
+          })
+        ]);
         pc!.addTrack(track, stream);
       }
 
@@ -182,7 +186,9 @@ class _HomeState extends State<Home> {
       return;
     }
     _logStreamTracks('ensureAudioCapture', stream);
-    debugPrint('[_ensureAudioCapture] starting capture streamId=${stream.id} active=${stream.active}');
+    final streamId = js_util.getProperty(stream, 'id');
+    final active = js_util.getProperty(stream, 'active');
+    debugPrint('[_ensureAudioCapture] starting capture streamId=${streamId ?? 'unknown'} active=${active ?? 'unknown'}');
     _audioCapture.start(stream);
     _audioCaptureStarted = true;
     debugPrint('[audio] capture started');
@@ -199,7 +205,7 @@ class _HomeState extends State<Home> {
     });
   }
 
-  void _logStreamTracks(String prefix, html.MediaStream stream) {
+  void _logStreamTracks(String prefix, dynamic stream) {
     final tracks =
         List<dynamic>.from(js_util.callMethod(stream, 'getAudioTracks', []));
     final streamId = js_util.getProperty(stream, 'id');
@@ -594,7 +600,9 @@ class _HomeState extends State<Home> {
     } else {
       debugPrint('[_onMicTap] no active turn to cancel (sessionReady=$_sessionReady state=$_state)');
     }
-    debugPrint('[_onMicTap] local stream present=${_localStream != null} active=${_localStream?.active ?? false}');
+    final localStream = _localStream;
+    final localActive = localStream != null ? js_util.getProperty(localStream, 'active') : null;
+    debugPrint('[_onMicTap] local stream present=${localStream != null} active=${localActive ?? 'unknown'}');
     if (_localStream != null) {
       _logStreamTracks('_onMicTap', _localStream!);
     }
