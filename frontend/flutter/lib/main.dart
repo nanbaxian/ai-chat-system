@@ -157,6 +157,8 @@ class _HomeState extends State<Home> {
       debugPrint('[initRTC] got user media stream tracks=${stream.getTracks().length} active=${stream.active} id=${stream.id}');
       _logStreamTracks('initRTC', stream);
       for (final track in stream.getTracks()) {
+      final addEventListener = js_util.getProperty(track, 'addEventListener');
+      if (addEventListener != null) {
         js_util.callMethod(track, 'addEventListener', [
           'ended',
           js_util.allowInterop((event) {
@@ -164,11 +166,15 @@ class _HomeState extends State<Home> {
             debugPrint('[_track] initRTC track ended id=$trackId kind=${js_util.getProperty(track, 'kind') ?? 'unknown'}');
           })
         ]);
+      } else {
+        final trackId = js_util.getProperty(track, 'id') ?? 'unknown';
+        debugPrint('[_track] initRTC track id=$trackId has no addEventListener');
+      }
         pc!.addTrack(track, stream);
       }
 
-      _localStream = stream;
-      _localNativeStream = _resolveNativeStream(stream);
+    _localStream = stream;
+    _localNativeStream = _resolveNativeStream(stream);
       debugPrint('[initRTC] local stream stored active=${stream.active} id=${stream.id}');
     } catch (error, st) {
       debugPrint('[initRTC] getUserMedia failed: $error');
@@ -187,7 +193,7 @@ class _HomeState extends State<Home> {
       debugPrint('[_ensureAudioCapture] local stream not ready yet, cannot start capture');
       return;
     }
-    _localNativeStream = _extractNativeStream(stream);
+    _localNativeStream = _resolveNativeStream(stream);
     if (_localNativeStream == null) {
       debugPrint('[_ensureAudioCapture] native stream missing, waiting for native tracks');
       return;
