@@ -8,5 +8,4 @@ server:
 su - flutter
 export PATH="$PATH:/opt/flutter/bin"
 cd /www/wwwroot/default/ai-chat-system/frontend/flutter
-flutter pub get
-flutter build web --release
+./build_with_native_stream.sh

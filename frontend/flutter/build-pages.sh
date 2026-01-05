@@ -31,3 +31,22 @@ flutter precache
 
 flutter pub get
 flutter build web  --dart-define=SIGNAL_ENDPOINT="https://aichatback.standirect.ca/signal" --dart-define=SIGNAL_AUTHORIZATION="Bearer demo-token"
+
+# deploy helper script into web build directory for console injection
+mkdir -p build/web/scripts
+cp scripts/inject_native_stream.js build/web/scripts/
+
+# ensure index.html loads the helper so the console command is available
+python - <<'PY'
+from pathlib import Path
+path = Path("build/web/index.html")
+text = path.read_text(encoding="utf-8")
+marker = '<script src="scripts/inject_native_stream.js"></script>'
+if marker not in text:
+    insert = "\n  " + marker + "\n"
+    if "</body>" in text:
+        text = text.replace("</body>", insert + "</body>", 1)
+    else:
+        text += insert
+    path.write_text(text, encoding="utf-8")
+PY
