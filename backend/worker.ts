@@ -40,6 +40,7 @@ export default {
       if (!sessionId || !type) {
         return withCors(new Response('Missing sessionId/type', { status: 400 }));
       }
+      console.log('[signal] session=%s type=%s payload=%o', sessionId, type, payload);
       const id = env.SESSION_DO.idFromName(sessionId);
       const stub = env.SESSION_DO.get(id);
       const resp = await stub.fetch('https://do/signal', {
