@@ -33,6 +33,7 @@ export class SessionDO {
 
     this.pc.onicecandidate = (e) => {
       if (e.candidate && this.dc) {
+        console.log('[SessionDO] sending local ice', e.candidate);
         this.dc.send(JSON.stringify({ type: 'ice', payload: e.candidate }));
       }
     };
@@ -79,7 +80,13 @@ export class SessionDO {
     }
 
     if (type === 'ice') {
-      await this.pc!.addIceCandidate(payload);
+      try {
+        await this.pc!.addIceCandidate(payload);
+        console.log('[SessionDO] remote ice added', payload ? { mid: payload.sdpMid } : 'empty');
+      } catch (error) {
+        console.error('[SessionDO] addIceCandidate failed', error, payload);
+        throw error;
+      }
       return new Response('ok');
     }
 
