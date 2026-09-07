@@ -427,6 +427,10 @@ app.post('/sessions/:id/tts-test', async (req, res) => {
   }
 });
 
+app.get('/api/personas/active', (req, res) => {
+  res.json({ ok: true, persona: 'default' });
+});
+
 app.get('/health', (req, res) => {
   res.json({ ok: true, sessions: manager.size });
 });
