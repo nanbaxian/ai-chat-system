@@ -1,6 +1,0 @@
-name = "webtree-chatbot-front"
-type = "javascript"
-
-[env.production]
-route = ""
-zone_id = ""

@@ -1,14 +1,14 @@
-name = "webtree-chatbot-back"
+name = "voice-ai-demo"
 main = "backend/src/worker.ts"
 compatibility_date = "2025-07-18"
-compatibility_flags = ["nodejs_compat"]
 
-[durable_objects]
-bindings = [{name = "SESSION_DO", class_name = "SessionDO"}]
+[[durable_objects.bindings]]
+name = "SESSION_DO"
+class_name = "SessionDO"
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["SessionDO"]
+new_classes = ["SessionDO"]
 
 [[analytics_engine_datasets]]
 binding = "VOICE_METRICS"
