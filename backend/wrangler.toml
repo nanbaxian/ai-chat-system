@@ -1,6 +1,7 @@
 name = "voice-ai-demo"
 main = "src/worker.ts"
 compatibility_date = "2025-07-18"
+compatibility_flags = ["nodejs_compat"]
 
 # Durable Object binding
 [[durable_objects.bindings]]
@@ -20,9 +21,9 @@ dataset = "voice_ai_metrics"
 [[d1_databases]]
 binding = "DB"
 database_name = "voice_ai_users"
-database_id = ""  # Will be set after creation
+database_id = "9eff1816-ef6e-47e3-97e6-8f481395b847"
 
 # Cloudflare KV for OTP cache
 [[kv_namespaces]]
 binding = "OTP_KV"
-id = ""  # Will be set after creation
+id = "13ed1e856a3c4042a2039c715c684121"
