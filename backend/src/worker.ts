@@ -1,7 +1,4 @@
-export { SessionDO } from './session/session_do';
-import { handleAuthRequest } from './routes/auth';
-import { handleUserRequest } from './routes/user';
-import { verifyAuth, corsResponse, errorResponse } from './middleware/auth';
+export { SessionDO } from './session/session_do.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -34,20 +31,6 @@ export default {
     }
 
     const origin = req.headers.get('Origin') ?? '*';
-
-    // Auth routes
-    if (url.pathname.startsWith('/api/auth/')) {
-      return handleAuthRequest(req, env);
-    }
-
-    // User routes (require authentication)
-    if (url.pathname.startsWith('/api/user/')) {
-      const { context, error } = await verifyAuth(req, env.DB, env.OTP_KV);
-      if (error || !context.userId) {
-        return errorResponse('Unauthorized', 401, origin);
-      }
-      return handleUserRequest(req, env, context.userId);
-    }
 
     if (!url.pathname.startsWith('/signal')) {
       return withCors(new Response('Not Found', { status: 404 }), origin);

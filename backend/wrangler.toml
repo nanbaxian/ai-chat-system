@@ -11,18 +11,7 @@ class_name = "SessionDO"
 tag = "v1"
 new_sqlite_classes = ["SessionDO"]
 
-# Analytics Engine dataset for metrics
+# Analytics Engine dataset for metrics (optional but recommended)
 [[analytics_engine_datasets]]
 binding = "VOICE_METRICS"
 dataset = "voice_ai_metrics"
-
-# D1 Database for users & OTP
-[[d1_databases]]
-binding = "DB"
-database_name = "voice_ai_users"
-database_id = ""  # Will be set after creation
-
-# Cloudflare KV for OTP cache
-[[kv_namespaces]]
-binding = "OTP_KV"
-id = ""  # Will be set after creation
